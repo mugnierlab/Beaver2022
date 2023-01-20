@@ -1,0 +1,40 @@
+================================================================
+Program: CD-HIT, V4.8.1, Mar 01 2019, 06:12:48
+Command: cd-hit-est -i abex7_all_orfs.fa -o
+         abex7_all_orfs_merged.merged.fa -d 0 -c .98 -n 8 -G 1
+         -g 1 -s 0.0 -aL 0.0 -M 1000 -T 24
+
+Started: Fri Aug  6 16:40:11 2021
+================================================================
+                            Output                              
+----------------------------------------------------------------
+Option -T is ignored: multi-threading with OpenMP is NOT enabled!
+total seq: 32127
+longest and shortest : 2532 and 39
+Total letters: 42996459
+Sequences have been sorted
+
+Approximated minimal memory consumption:
+Sequence        : 48M
+Buffer          : 1 X 12M = 12M
+Table           : 1 X 1M = 1M
+Miscellaneous   : 0M
+Total           : 63M
+
+Table limit with the given memory limit:
+Max number of representatives: 616742
+Max number of word counting entries: 117067924
+
+comparing sequences from          0  to      32127
+....................    10000  finished       1044  clusters
+....................    20000  finished       2251  clusters
+....................    30000  finished       3876  clusters
+..
+    32127  finished       4338  clusters
+
+Approximated maximum memory consumption: 106M
+writing new database
+writing clustering information
+program completed !
+
+Total CPU time 43.94
