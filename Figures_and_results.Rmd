@@ -426,6 +426,13 @@ counts_by_sample_dunn_test<- counts_per_sample %>%
   dunn_test(vsg_count ~ tissue_final, p.adjust.method = "BH" ) %>%
   add_xy_position(step.increase = 0.05)
 
+counts_by_sample_norm_test <- counts_per_sample %>%
+  mutate(test_tissue = paste(day, tissue_final, sep = "_")) %>%
+  filter(test_tissue != "D10_brain") %>%
+  select(-test_tissue) %>%
+  group_by(day, tissue_final) %>%
+  shapiro_test(vsg_count)
+
 counts_by_sample_boxplot <- results %>%
   filter(mode == "IV",
          strain == "WT") %>%
@@ -476,6 +483,13 @@ vsg_percent_unique <- results %>%
          ratio_unique = number_unique / vsg_count,
          not_unique = vsg_count - number_unique)%>%
   mutate(percent_unique= replace_na(percent_unique, 0)) 
+
+vsg_percent_unique_norm_test <- vsg_percent_unique %>%
+  mutate(test_tissue = paste(day, tissue_final, sep = "_")) %>%
+  filter(test_tissue != "D10_brain") %>%
+  select(-test_tissue) %>%
+  group_by(day, tissue_final) %>%
+  shapiro_test(percent_unique)
 
 vsg_percent_unique_t_test_dat <- vsg_percent_unique %>%
   group_by(day) %>%
@@ -788,6 +802,11 @@ wt_and_aid_vsg_counts <- wt_and_aid_results %>%
   select(-day1) %>% 
   mutate(strain = factor(strain, levels = c("WT", "AID"))) %>%
   filter(day!= "D10") 
+
+wt_and_aid_counts_norm_test <- wt_and_aid_vsg_counts %>% 
+  filter(day == "D14") %>%
+  group_by(space, strain) %>%
+  shapiro_test(vsg_count)
 
 wt_and_aid_counts_t_test <- wt_and_aid_vsg_counts %>% 
   filter(day == "D14") %>%
