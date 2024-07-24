@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+C5_Lung_Antat_R1_cell_TTCGCTCA+CGACCTAT.fq	C5	1	cell	Lung	TRINITY_DN0_c0_g1_i5_1_94_1636_RC_C5_Lung_Antat_R1_cell_TTCGCTCA+CGACCTAT	100.0	656598.752462	gnl|BL_ORD_ID|2772 Tbb1125VSG-211 : Complete : 1527nt : contig PacBio-410	98.897535668	99.8690242305	1527	1542

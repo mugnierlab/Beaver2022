@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+P8_Mix_random_R1_cell_TGAGTTCG+AAGTCCTC.fq	P8	1	cell	Mix	TRINITY_DN1_c0_g1_i2_1_77_1454_RC_P8_Mix_random_R1_cell_TGAGTTCG+AAGTCCTC	10.9432061453	1414608.91204	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	95.2795933188	91.4923291492	1434	1377
+P8_Mix_random_R1_cell_TGAGTTCG+AAGTCCTC.fq	P8	1	cell	Mix	TRINITY_DN1_c0_g1_i4_1_77_1469_RC_P8_Mix_random_R1_cell_TGAGTTCG+AAGTCCTC	89.0567938547	11512214.2991	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	99.9281609195	97.0013947001	1434	1392

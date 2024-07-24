@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+G6_Lung_Antat_R1_cell_TTGCGTAC+TGCTGCTA.fq	G6	1	cell	Lung	TRINITY_DN26_c0_g1_i4_1_146_1643_RC_G6_Lung_Antat_R1_cell_TTGCGTAC+TGCTGCTA	100.0	676589.918809	gnl|BL_ORD_ID|2616 Tbb1125VSG-43.1 : Complete : 1497nt : Duplicate : contig Illumina-5219	100.0	100.0	1497	1497

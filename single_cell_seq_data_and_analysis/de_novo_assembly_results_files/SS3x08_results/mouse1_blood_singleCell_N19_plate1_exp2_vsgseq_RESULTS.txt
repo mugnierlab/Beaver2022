@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_blood_single_cell_N19_plate1_exp2_TCGAACGA+TTACGCAG.fq	mouse1	blood	singleCell	N19	plate1	exp2	TRINITY_DN0_c0_g1_i3_1_1_1287_RC_mouse1_blood_single_cell_N19_plate1_exp2_TCGAACGA+TTACGCAG	100.0	789265.90371	gnl|BL_ORD_ID|2616 Tbb1125VSG-43.1 : Complete : 1497nt : Duplicate : contig Illumina-5219	99.1446345257	85.1703406814	1497	1286

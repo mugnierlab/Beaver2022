@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+K1_Lung_R1_cell_TATCCGTC+GAGAACCA.fq	K1	1	cell	Lung	TRINITY_DN0_c0_g1_i1_1_106_1327_K1_Lung_R1_cell_TATCCGTC+GAGAACCA	100.0	831946.672213	gnl|BL_ORD_ID|4096 Tbb1125VSG-2564 : N-terminus partial : 1512nt : contig PacBio-102	99.180999181	80.0925925926	1512	1221

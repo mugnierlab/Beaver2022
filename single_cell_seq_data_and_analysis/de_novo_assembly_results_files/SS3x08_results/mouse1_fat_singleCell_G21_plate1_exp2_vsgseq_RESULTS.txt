@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_fat_single_cell_G21_plate1_exp2_CACTAACG+CCAATGGA.fq	mouse1	fat	singleCell	G21	plate1	exp2	TRINITY_DN0_c0_g1_i2_1_233_1472_mouse1_fat_single_cell_G21_plate1_exp2_CACTAACG+CCAATGGA	100.0	819672.04918	gnl|BL_ORD_ID|2673 Tbb1125VSG-119 : Complete : 1605nt : contig PacBio-107	98.9507667474	76.3862928349	1605	1239

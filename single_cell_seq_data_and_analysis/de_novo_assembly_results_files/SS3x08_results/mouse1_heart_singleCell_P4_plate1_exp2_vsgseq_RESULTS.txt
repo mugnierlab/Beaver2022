@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_heart_single_cell_P4_plate1_exp2_TTGTCTCC+AAGACCGT.fq	mouse1	heart	singleCell	P4	plate1	exp2	TRINITY_DN0_c0_g1_i1_1_210_1704_mouse1_heart_single_cell_P4_plate1_exp2_TTGTCTCC+AAGACCGT	100.0	677966.033898	gnl|BL_ORD_ID|3115 Tbb1125VSG-1026 : Complete but extended but atypical GPI site : 1521nt : contig Illumina-7008	98.9290495315	97.1729125575	1521	1494

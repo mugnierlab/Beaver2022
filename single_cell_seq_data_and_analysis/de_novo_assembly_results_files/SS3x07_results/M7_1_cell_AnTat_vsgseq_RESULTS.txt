@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+M7_AnTat_R1_cell_TAGAGTGC+AACTTGCC.fq	M7	1	cell	AnTat	TRINITY_DN31_c0_g1_i6_1_78_1422_M7_AnTat_R1_cell_TAGAGTGC+AACTTGCC	20.0344102466	877385.303795	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	93.3779761905	82.5115055884	1521	1344
+M7_AnTat_R1_cell_TAGAGTGC+AACTTGCC.fq	M7	1	cell	AnTat	TRINITY_DN31_c0_g1_i9_1_78_1590_M7_AnTat_R1_cell_TAGAGTGC+AACTTGCC	79.9655897534	3502006.41772	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	87.3015873016	86.7850098619	1521	1512

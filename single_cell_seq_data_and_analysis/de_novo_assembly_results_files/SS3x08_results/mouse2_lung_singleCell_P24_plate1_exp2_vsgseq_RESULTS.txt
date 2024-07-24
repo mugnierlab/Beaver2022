@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse2_lung_single_cell_P24_plate1_exp2_AACAGCGA+GTGTTGCT.fq	mouse2	lung	singleCell	P24	plate1	exp2	TRINITY_DN0_c0_g1_i1_1_79_1481_mouse2_lung_single_cell_P24_plate1_exp2_AACAGCGA+GTGTTGCT	100.0	723065.726681	gnl|BL_ORD_ID|718 Tb427VSG-1176 : GB Accession KC612683 : 1395nt : N-terminus partial : contig2779.	74.0370898716	74.4086021505	1395	1402

@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_fat_single_cell_A12_plate1_exp2_TGTAGGTC+TTCTTGGC.fq	mouse1	fat	singleCell	A12	plate1	exp2	TRINITY_DN0_c0_g1_i3_1_0_1004_RC_mouse1_fat_single_cell_A12_plate1_exp2_TGTAGGTC+TTCTTGGC	100.0	1015228.32487	gnl|BL_ORD_ID|3 Tb427VSG-4 : GB Accession V01387 : 1581nt : Complete : contig90001.	98.7051792829	62.6818469323	1581	1004

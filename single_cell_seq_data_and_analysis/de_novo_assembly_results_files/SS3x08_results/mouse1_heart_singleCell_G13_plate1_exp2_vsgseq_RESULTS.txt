@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_heart_single_cell_G13_plate1_exp2_CGATCCTA+GATAGGAG.fq	mouse1	heart	singleCell	G13	plate1	exp2	TRINITY_DN0_c0_g1_i1_1_167_1715_RC_mouse1_heart_single_cell_G13_plate1_exp2_CGATCCTA+GATAGGAG	100.0	654022.171354	gnl|BL_ORD_ID|4826 Tbb1125VSG-4098 : Complete but atypical GPI site : 1551nt : contig PacBio-2378	88.0490956072	87.8787878788	1551	1548

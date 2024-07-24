@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_blood_single_cell_D23_plate1_exp2_TAGCGCTT+GAATGTGC.fq	mouse1	blood	singleCell	D23	plate1	exp2	TRINITY_DN20_c0_g1_i1_1_2_1086_RC_mouse1_blood_single_cell_D23_plate1_exp2_TAGCGCTT+GAATGTGC	100.0	938967.042254	gnl|BL_ORD_ID|6 Tb427VSG-8 : GB Accession AY935574 : 1401nt : Complete : contig90003.	100.0	77.3733047823	1401	1084

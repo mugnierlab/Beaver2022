@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_fat_single_cell_I5_plate1_exp2_TCGTGGTA+GCACTTGT.fq	mouse1	fat	singleCell	I5	plate1	exp2	TRINITY_DN1_c0_g1_i2_1_49_1192_mouse1_fat_single_cell_I5_plate1_exp2_TCGTGGTA+GCACTTGT	100.0	889679.626335	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	96.5879265092	76.9874476987	1434	1143

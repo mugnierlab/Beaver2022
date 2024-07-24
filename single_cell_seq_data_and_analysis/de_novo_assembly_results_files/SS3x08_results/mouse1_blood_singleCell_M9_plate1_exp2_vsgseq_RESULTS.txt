@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_blood_single_cell_M9_plate1_exp2_CAGAATCG+TTGTGCAC.fq	mouse1	blood	singleCell	M9	plate1	exp2	TRINITY_DN0_c0_g1_i8_1_105_1572_mouse1_blood_single_cell_M9_plate1_exp2_CAGAATCG+TTGTGCAC	100.0	690607.665746	gnl|BL_ORD_ID|2882 Tbb1125VSG-319 : Complete : 1470nt : contig PacBio-406	99.3183367416	99.1156462585	1470	1467

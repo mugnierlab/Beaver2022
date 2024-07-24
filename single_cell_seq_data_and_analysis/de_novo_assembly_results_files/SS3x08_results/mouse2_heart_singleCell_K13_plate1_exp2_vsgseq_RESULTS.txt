@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse2_heart_single_cell_K13_plate1_exp2_CGATCCTA+GAGAACCA.fq	mouse2	heart	singleCell	K13	plate1	exp2	TRINITY_DN11_c0_g1_i2_1_39_1623_RC_mouse2_heart_single_cell_K13_plate1_exp2_CGATCCTA+GAGAACCA	100.0	638977.571885	gnl|BL_ORD_ID|2772 Tbb1125VSG-211 : Complete : 1527nt : contig PacBio-410	96.2752525253	99.8690242305	1527	1584

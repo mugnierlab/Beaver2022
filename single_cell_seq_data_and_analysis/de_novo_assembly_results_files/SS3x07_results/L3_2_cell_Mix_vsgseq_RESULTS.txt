@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+L3_Mix_random_R2_cell_TGGTCAAC+CCAACTCT.fq	L3	2	cell	Mix	TRINITY_DN36_c0_g1_i3_1_0_917_RC_L3_Mix_random_R2_cell_TGGTCAAC+CCAACTCT	4.84312474579	33099.2026486	gnl|BL_ORD_ID|2088 Tb427VSG-3303 : GB Accession KC611910 : 1236nt : Internal partial : contig3329.	6.54307524537	4.85436893204	1236	917
+L3_Mix_random_R2_cell_TGGTCAAC+CCAACTCT.fq	L3	2	cell	Mix	TRINITY_DN0_c0_g1_i4_1_138_1650_RC_L3_Mix_random_R2_cell_TGGTCAAC+CCAACTCT	95.1568752542	650327.394558	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	87.3015873016	86.7850098619	1521	1512

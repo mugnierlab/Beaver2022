@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+L22_Lung_R1_cell_ACTGAGAG+ATGTACCG.fq	L22	1	cell	Lung	TRINITY_DN0_c0_g1_i6_1_88_1798_RC_L22_Lung_R1_cell_ACTGAGAG+ATGTACCG	100.0	591365.996452	gnl|BL_ORD_ID|3115 Tbb1125VSG-1026 : Complete but extended but atypical GPI site : 1521nt : contig Illumina-7008	86.3742690058	97.1071663379	1521	1710

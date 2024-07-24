@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_blood_single_cell_K22_plate1_exp2_TCCAGACT+TGTGATCG.fq	mouse1	blood	singleCell	K22	plate1	exp2	TRINITY_DN5_c0_g1_i5_1_135_1626_mouse1_blood_single_cell_K22_plate1_exp2_TCCAGACT+TGTGATCG	100.0	679347.758152	gnl|BL_ORD_ID|2845 Tbb1125VSG-288 : Complete but atypical GPI site : 1482nt : contig PacBio-102	98.5244802146	99.1228070175	1482	1491

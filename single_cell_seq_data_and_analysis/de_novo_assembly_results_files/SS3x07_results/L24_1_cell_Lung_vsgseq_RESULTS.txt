@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+L24_Lung_Antat_R1_cell_AAGACCGT+GCATCGAT.fq	L24	1	cell	Lung	TRINITY_DN1_c0_g1_i5_1_0_1256_RC_L24_Lung_Antat_R1_cell_AAGACCGT+GCATCGAT	100.0	808407.356508	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	97.4522292994	85.3556485356	1434	1256

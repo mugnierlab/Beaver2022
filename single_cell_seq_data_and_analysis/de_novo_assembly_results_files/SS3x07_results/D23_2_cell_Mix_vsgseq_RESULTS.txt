@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+D23_Mix_random_R2_cell_TAGCGCTT+TTCTCGTG.fq	D23	2	cell	Mix	TRINITY_DN0_c0_g1_i1_1_78_1445_D23_Mix_random_R2_cell_TAGCGCTT+TTCTCGTG	100.0	741839.688427	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	96.6349670812	86.8507560815	1521	1367

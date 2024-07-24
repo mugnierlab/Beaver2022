@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+O16_Mix_random_R2_cell_TTGCACTC+CAGCAACT.fq	O16	2	cell	Mix	TRINITY_DN4_c0_g1_i1_1_120_1110_O16_Mix_random_R2_cell_TTGCACTC+CAGCAACT	8.71684867395	305654.579725	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	92.4242424242	60.157790927	1521	990
+O16_Mix_random_R2_cell_TTGCACTC+CAGCAACT.fq	O16	2	cell	Mix	TRINITY_DN4_c0_g1_i4_1_120_1257_O16_Mix_random_R2_cell_TTGCACTC+CAGCAACT	91.2831513261	3200825.69954	gnl|BL_ORD_ID|4884 Tbb1125VSG-4156 : N-terminus partial : 1521nt : contig PacBio-117	83.201407212	62.1959237344	1521	1137

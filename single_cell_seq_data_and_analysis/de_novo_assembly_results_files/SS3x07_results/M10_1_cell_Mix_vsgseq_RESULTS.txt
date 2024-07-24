@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+M10_Mix_random_R1_cell_CCGATAAC+ACGCGATT.fq	M10	1	cell	Mix	TRINITY_DN0_c0_g1_i1_1_49_1241_M10_Mix_random_R1_cell_CCGATAAC+ACGCGATT	100.0	852514.83376	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	98.5738255034	81.9386331939	1434	1192

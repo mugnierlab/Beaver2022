@@ -1,0 +1,2016 @@
+---
+title: "Analysis of single-cell vsgseq"
+author: "Alex"
+date: "2024-03-12"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(vsgseqtools)
+library(ggpubr)
+library(pheatmap)
+library(ggsci)
+library("gridExtra")
+library(VennDiagram)
+library(scales)
+
+color_palette_12 <- c("#BA584A","#3D7F9F","#4D947B","#FAD370","#8BD9D1","#F59E75","#B0889E",
+                      "#F28A2E","#AB7846","#A2BDA5","#F09EB0","#D9D9D9")
+color_palette_4 <- c("#BA584A","#A2BDA5","#3D7F9F", "#B0889E")
+
+color_palette_4_v2 <- c("#4D947B","#A2BDA5", "#B0889E","#BA584A" )
+color_palette_2 <- c("#4D947B","#BA584A" )
+
+color_palette_6 <- c("#4D947B","#A2BDA5","#CFDED0", "#B0889E","#BA584A", "#D3D3D3")
+```
+
+
+# VSG-Seq de novo assembly analysis
+
+*Note: two sequencing runs were performed. The first was SS3x07 and the second was SS3x08. I have seperate results files for these but then merge them together after tidying the data up. 
+
+```{r}
+
+#loading SS3x 08 results - This is the second sequencing run in the single cell sequencing experiment 
+ss3x08_sc_results <- vsg_read("de_novo_assembly_results_files/SS3x08_results/all_sc_exp2_results.txt") %>%
+  mutate(sort = "tdTom") %>%
+  mutate(cellid = paste(mouse, source, cell, well, sep = "_")) %>%
+  filter(cell != "Water") %>%
+  mutate(plate = paste(mouse, source, experiment, sep = "_")) %>%
+  mutate(cellid_2 = paste(well, mouse, source, sep = "_") )
+
+ss3x08_sc_results_renamed <- vsg_rename(
+  ss3x08_sc_results, 
+  "de_novo_assembly_VSG_orfs/cluster_reference_table.txt")
+
+ss3x08_sc_results_renamed %>% 
+  select(cellid) %>%
+  distinct() %>%
+  dplyr::count()
+
+ss3x08_results <- ss3x08_sc_results_renamed
+```
+
+```{r}
+# load in the results from SS3x07 - This is from the first sequencing run in the single cell sequencing experiment
+ss3x07_sc_results <- vsg_read("ss3x_07_results/results_files/all_results.txt") %>%
+  select(-well, -R) %>%
+  filter(type != "Water") %>%
+  rename(cell = type) %>%
+  separate(samplename, c("name", "R"), sep = "R", remove = F) %>%
+  separate(name, c("well", "source"), sep = "_") %>%
+  mutate(sort = case_when(source == "AnTat" ~ "Antat",
+                          TRUE ~ "tdTom")) %>%
+  mutate(sort = case_when(str_detect(samplename, "Lung_Antat") == TRUE & str_detect(well, "A|B|C|D") == TRUE ~ "Antat",  TRUE ~ sort)) %>%
+  mutate(plate = case_when(str_detect(samplename, "Lung_Antat") == TRUE ~ "Lung_Antat",
+                           source == "AnTat" ~ "Mix_Antat", 
+                           TRUE ~ source)) %>%
+  mutate(plate = paste0(plate,"_","R",R)) %>%
+  mutate(source = case_when(source == "AnTat" ~ "Mix",
+                            TRUE ~ source)) %>%
+  separate(plate, "plate", sep = "_cell") %>%
+  mutate(experiment = "exp1") %>%
+  mutate(cell = case_when(cell == "cell" ~ "singleCell",
+                          TRUE ~ cell)) %>%
+  mutate(mouse = case_when(source == "Mix" ~ "invitro", 
+                           source == "Lung" ~ "mouse1")) %>%
+  mutate(source = case_when(source == "Lung" ~ "lung",
+                            source == "Mix" ~ "mix")) %>%
+  select(-R) %>%
+  mutate(cellid = paste(mouse, source, cell, well, plate, sep = "_")) %>%
+  mutate(plate = paste(mouse, plate,experiment, sep = "_")) %>%
+  separate(samplename, "cellid_2", sep = "_cell", remove = F)
+
+#Rename cluster to match between experiments
+ss3x07_sc_results_renamed <- vsg_rename(
+  ss3x07_sc_results, 
+  "all_vsg_orfs/cluster_reference_table.txt") 
+
+ss3x07_results <- ss3x07_sc_results_renamed
+```
+```{r}
+# Combining results from both experiments
+all_raw_results <- rbind(ss3x07_sc_results, ss3x08_sc_results)
+
+all_raw_results_renamed <- vsg_rename(all_raw_results, 
+  "all_vsg_orfs/cluster_reference_table.txt") 
+
+results <- all_raw_results_renamed
+
+# Sometimes VSGs will group together in cd-hit on all the orfs that didnt group together when run individually. Because of this some vsgs get "duplicated", as in the same cluster is in the same cell twice. I remove these and recalculate the percentage. 
+
+duplicated_vsgs <- results %>%
+  group_by(samplename) %>%
+  distinct(cluster, .keep_all = TRUE) %>%
+  ungroup() %>%
+  anti_join(results, .) 
+
+duplicated_vsgs_list <- duplicated_vsgs$samplename
+
+duplicated_vsgs <- duplicated_vsgs %>%
+  mutate(Percent = 100) 
+
+results <- results %>%
+  filter(!(samplename %in% duplicated_vsgs_list)) %>%
+  rbind(duplicated_vsgs) 
+
+```
+
+
+```{r}
+# These clusters which all have a top hit of Tb427 VSG-3303 do not hit an actual VSG. They map to internal chromosome sections and ribosomal subunits. Which is often a contaminant that looks like a vsg. For further analysis, I will filter these errors out.  
+
+results <- results %>%
+  filter(str_detect(hit_VSG, "Tb427VSG-3303") == F) %>%
+  group_by(cellid) %>%
+  mutate(total_rpkm = sum(RPKM)) %>%
+  mutate(Percent = (RPKM/total_rpkm)*100) %>%
+  filter(Percent > 0) %>%
+  mutate(vsg = "y") 
+```
+
+```{r}
+number_of_wells <- results %>%
+  group_by(mouse, source, plate) %>%
+  dplyr::count(name = "wells_with_results") %>%
+  mutate(total_wells = 370) %>%
+  mutate(percent_success = (wells_with_results/total_wells)*100)
+
+#adding a tally for the number of VSGs assembled in each cell without any filtering
+results <- results %>%
+  group_by(cellid) %>%
+  add_tally(name = "number_of_vsgs_in_sample") 
+  
+```
+
+
+```{r}
+#I got raw total read counts from each cell by using -wc in the terminal. These are not succesfully aligning reads, but just total raw reads per cell. 
+read_counts <- read_table("read_counts.txt", 
+    col_names = FALSE) %>%
+  rename(lines = X1,
+         file = X2) %>%
+  filter(str_detect(file,"bulk") != T, 
+         str_detect(file, "unassigned") != T) %>%
+  mutate(reads = lines/4) %>%
+  select(-lines) %>%
+  separate(file, "samplename", sep = ".fq", remove = T) 
+
+results_and_reads <- results %>%
+  right_join(read_counts) %>%
+  mutate(vsg = case_when(is.na(vsg) == T ~ "n",
+                         TRUE ~ vsg)) %>%
+  mutate(number_of_vsgs_in_sample = case_when(is.na(number_of_vsgs_in_sample) == T ~ 0,
+                         TRUE ~ number_of_vsgs_in_sample))
+
+result_vs_reads <- results_and_reads %>%
+  ggplot(aes(y = log10(reads), x = as.character(number_of_vsgs_in_sample))) +
+  geom_violin() +
+  geom_point(aes(color = plate), position = position_jitter(.2)) +
+  theme_pubr()
+result_vs_reads
+```
+
+
+```{r}
+# The total number of cells with a de novo assembled VSG 
+results %>% 
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  filter(mouse != "invitro") %>%
+  ungroup() %>%
+  select(cellid_2) %>% 
+  distinct() %>%
+  dplyr::count()
+  
+
+mouse1_assem_vsgs_histo <- results %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  filter(mouse == "mouse1") %>%
+  ggplot(aes(x =  number_of_vsgs_in_sample)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap("source", scales = "free_y") +
+  theme_pubr(base_size = 20) +
+  ggtitle("Mouse 1") +
+  ylab("Number of cells")
+mouse1_assem_vsgs_histo
+
+ggsave("figures/mouse1_assem_vsgs_histo.pdf", mouse1_assem_vsgs_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+mouse2_assem_vsgs_histo <- results %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  filter(mouse == "mouse2") %>%
+  ggplot(aes(x =  number_of_vsgs_in_sample)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap("source", scales = "free_y") +
+  theme_pubr(base_size = 20)+
+  ggtitle("Mouse 2") +
+  ylab("Number of cells")
+mouse2_assem_vsgs_histo
+
+ggsave("figures/mouse2_assem_vsgs_histo.pdf", mouse2_assem_vsgs_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+```
+
+```{r}
+in_vitro <- results %>% 
+  filter(source == "mix") %>% 
+  mutate(vsg_of_interest = case_when(cluster == "Cluster 9" ~ "AnTat",
+                                     cluster == "Cluster 25" ~ "VSG-60",
+                                     cluster == "Cluster 21" ~ "AnTat variant",
+                                     TRUE ~ "other VSG")) %>%
+  mutate(vsg_of_interest = factor(vsg_of_interest, levels = c("AnTat", "VSG-60", "AnTat variant","other VSG"))) %>%
+  ggplot(aes(x = vsg_of_interest, y = Percent)) +
+  geom_point(position = position_jitter(width = 0.4, height = 0.6)) +
+  theme_pubr() 
+
+in_vitro
+```
+
+
+```{r}
+vsgs_per_source <- results %>%
+  ungroup() %>%
+  select(mouse, source, cluster) %>%
+  distinct() %>%
+  group_by(mouse, source) %>% 
+  dplyr::count(name = "number_of_vsgs")
+
+cells_per_source <- results %>% 
+  ungroup() %>%
+  select(mouse, source, cellid_2) %>%
+  distinct() %>%
+  group_by( source, mouse) %>%
+  summarise( cells = n()) %>%
+  left_join(vsgs_per_source)
+
+vsgs_vs_cells <- cells_per_source %>%
+  ggplot(aes(x = number_of_vsgs, y = cells)) +
+  geom_point(aes(color = source)) + 
+  theme_pubr()
+vsgs_vs_cells
+```
+```{r}
+summary_cells_assembled <- results %>% 
+  filter(mouse != "invitro") %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  ungroup() %>%
+  select(cellid_2, source, mouse) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  summarise( cells = n()) 
+
+# number of assembled vsgs per cell count
+assembled_vsgs_counts <- results %>%
+  filter(mouse != "invitro") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  ungroup() %>%
+  select(cellid_2, number_of_vsgs_in_sample) %>%
+  distinct() %>%
+  group_by(number_of_vsgs_in_sample) %>%
+  dplyr::count()
+  
+```
+
+
+```{r}
+
+# We want to call VSGs that represent 80% or more of the relative reads as the main VSG of that cell. The other VSGs would then be background. So essentially if a VSG is more than 80% then that is the expressed VSG for that cell. 
+dominant_vsg_results <- results %>% 
+  filter(Percent > 80) %>% 
+  mutate(main_vsg = cluster) %>%
+  select(cellid, main_vsg) %>%
+  right_join(results) %>%
+  mutate(main_vsg = case_when(is.na(main_vsg) == T ~ cluster, 
+                              TRUE ~ main_vsg)) 
+
+corrected_vsgs_vs_cells <- dominant_vsg_results %>%
+  ungroup() %>%
+  select(mouse, source, main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  summarize(corrected_vsgs = n()) %>%
+  left_join(cells_per_source)
+
+vsgs_vs_cells <- corrected_vsgs_vs_cells %>%
+  ggplot(aes(x = corrected_vsgs, y = cells)) +
+  geom_point(aes(color = source)) + 
+  theme_pubr()
+vsgs_vs_cells
+
+```
+
+```{r}
+dominant_vsgs_per_source <- dominant_vsg_results %>% 
+  select(cellid, cellid_2, source, mouse, main_vsg, sort) %>%
+  distinct() %>%
+  group_by(cellid) %>%
+  add_tally(name = "dominant_number_of_vsgs_in_sample") %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T)
+
+# the number of DOMINANT vsgs per cell, 98.6% have only one dominant VSG
+dominant_vsgs_per_source %>%
+  filter(mouse != "invitro") %>%
+  ungroup() %>%
+  group_by(dominant_number_of_vsgs_in_sample) %>%
+  select(cellid, dominant_number_of_vsgs_in_sample) %>% 
+  distinct() %>%
+  dplyr::count()
+```
+
+```{r}  
+mouse1_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
+  filter(mouse == "mouse1") %>%
+  ggplot(aes(x =  dominant_number_of_vsgs_in_sample)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap("source", scales = "free_y") +
+  theme_pubr(base_size = 20) + 
+  xlim(0.5,3.5) +
+  ggtitle("Mouse 1") +
+  ylab("Number of cells") +
+  xlab("Number of VSGs assembled in a cell")
+  
+ mouse1_dominant_vsgs_per_source_plot
+
+ggsave("figures/mouse1_dominant_vsgs_per_source_plot.pdf", mouse1_dominant_vsgs_per_source_plot,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+mouse2_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
+  filter(mouse == "mouse2") %>%
+  ggplot(aes(x =  dominant_number_of_vsgs_in_sample)) +
+  geom_histogram(binwidth = 1) +
+  facet_wrap("source", scales = "free_y") +
+  theme_pubr(base_size = 20) + 
+  xlim(0.5,3.5) +
+  ggtitle("Mouse 2") +
+  ylab("Number of cells") +
+  xlab("Number of VSGs assembled in a cell")
+
+mouse2_dominant_vsgs_per_source_plot
+
+ggsave("figures/mouse2_dominant_vsgs_per_source_plot.pdf", mouse2_dominant_vsgs_per_source_plot,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+invitro_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
+  filter(mouse == "invitro") %>%
+  ggplot(aes(x =  dominant_number_of_vsgs_in_sample)) +
+  geom_histogram(binwidth = 1) +
+  #facet_wrap("source", scales = "free_y") +
+  theme_pubr() + 
+  xlim(0.5,3.5) +
+  ggtitle("in vitro")
+invitro_dominant_vsgs_per_source_plot
+```
+
+```{r}
+# number of cells in mouse1 blood is 246
+# I found 48 VSGs in mouse 1 blood by raw sc seq 
+# I found 37 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# bulk: 54 raw vsgs assembled
+# bulk: 28 vsgs corrected for number of cells
+bulk_blood_mouse1 <- read_tsv("bulk_vsgseq/mouse1_blood_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 246 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_blood_mouse1_count <- bulk_blood_mouse1 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+# number of cells in mouse1 blood is 237
+# I found 62 VSGs in mouse 1 blood by raw sc seq 
+# I found 57 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# Bulk: 59 raw vsgs assembled
+# Bulk: 24 vsgs corrected for number of cells
+bulk_fat_mouse1 <- read_tsv("bulk_vsgseq/mouse1_fat_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 237 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_fat_mouse1_count <- bulk_fat_mouse1 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+
+# number of cells in mouse1 blood is 208
+# I found 18 VSGs in mouse 1 blood by raw sc seq 
+# I found 16 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# Bulk: 33 vsgs assembled
+# bulk: 8 vsgs when corrected for number of cells
+bulk_heart_mouse1 <- read_tsv("bulk_vsgseq/mouse1_heart_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 208 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_heart_mouse1_count <- bulk_heart_mouse1 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+
+# number of cells in mouse1 blood is 530
+# I found 56 VSGs in mouse 1 blood by raw sc seq 
+# I found 33 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+bulk_lung_mouse1 <- read_tsv("bulk_vsgseq/mouse1_lung_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 530 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_lung_mouse1_count <- bulk_lung_mouse1 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+# number of cells in mouse1 blood is 163
+# I found 39 VSGs in mouse 1 blood by raw sc seq 
+# I found 32 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# bulk: 31 vsgs assembled
+# bulk: 10 vsgs corrected by cells
+bulk_blood_mouse2 <- read_tsv("bulk_vsgseq/mouse2_blood_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 163 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_blood_mouse2_count <- bulk_blood_mouse2 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+# number of cells in mouse1 blood is 140
+# I found 39 VSGs in mouse 1 blood by raw sc seq 
+# I found 32 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# bulk: 32 vsgs assembled
+# bulk: 12 vsgs corrected by cells
+bulk_fat_mouse2 <- read_tsv("bulk_vsgseq/mouse2_fat_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 140 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_fat_mouse2_count <- bulk_fat_mouse2 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+# number of cells in mouse1 blood is 199
+# I found 50 VSGs in mouse 1 blood by raw sc seq 
+# I found 44 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
+# bulk: 59 vsgs assembled
+# bulk: 29 vsgs corrected by cells
+bulk_heart_mouse2 <- read_tsv("bulk_vsgseq/mouse2_heart_bulk_RESULTS.txt") %>%
+  mutate(total_number_cells = 140 ) %>%
+  mutate(parasites = (Percent/100)*total_number_cells) 
+bulk_heart_mouse2_count <- bulk_heart_mouse2 %>%
+  filter(parasites > 1) %>%
+  dplyr::count()
+
+#mouse 2 lung bulk VSG-seq didn't work. The error was pretty cryptic. Will have to look more closely later. But i dont think this is super key at the moment. 
+
+```
+
+```{r}
+
+# The corresponding VSG ID for each EATRO1125 gene ID (and location)
+VSG_location_EATRO1125v67 <- read_delim("VSG_location_EATRO1125v67.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE)
+
+# The geneids and the corresponding VSGIDs
+VSG_geneids <- VSG_location_EATRO1125v67 %>%
+  select(Gene_ID, VSG_ID) %>%
+  rename(vsg = Gene_ID) 
+```
+
+
+```{r}
+
+# Count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the second round of sequencing)
+SS3x_008_EATRO_count_table_Alex_good_single_cells <- read_delim("SS3x_008_Alex_General_stats/SS3x_008_EATRO_count_table_Alex_good_single_cells.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  rename(gene_id = ...1) %>%
+  separate(gene_id, c("gene_id", "trash"), sep = ":") %>%
+  select(-trash)
+
+# Transforming the matrix into a tidy table
+SS3x_008_EATRO_count_table_Alex_good_single_cells_df <- SS3x_008_EATRO_count_table_Alex_good_single_cells %>%
+  pivot_longer(cols = A2_mouse1_blood:last_col(), names_to = "cell" ,values_to = "read_count") 
+
+# The relative VSG UMI counts for each VSG in a cell. This is only for cells that passed the "good" cell thresholds with at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts
+SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex <- read_delim("VSG_expression_matixes/SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  rename(gene_id = ...1)
+
+# Transforming the expression matrix into a tidy table and managing the cell names and adding sort labels. Also joined the gene ids with the vsg ids 
+SS3x_008_EATRO_VSG_relative_expression_df <- SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex %>%
+  pivot_longer(cols = A2_mouse1_blood:last_col(), names_to = "cell" ,values_to = "Percent") %>%
+  filter(Percent > 0) %>%
+  left_join(SS3x_008_EATRO_count_table_Alex_good_single_cells_df) %>%
+  separate(cell, c("well", "mouse","source"), sep = "_", remove = F) %>%
+  mutate(experiment = "exp2",
+         sort = "tdTom")  %>%
+  rename(vsg = gene_id)  %>% 
+  left_join(VSG_geneids)
+
+
+SS3x_008_EATRO_VSG_counts <- SS3x_008_EATRO_VSG_relative_expression_df %>%
+  filter(read_count > 1) %>%
+  select(cell, vsg) %>% 
+  separate(cell, c("well", "mouse", "source"), sep = "_", remove = F) %>%
+  distinct() %>%
+  group_by(cell, mouse, source) %>%
+  dplyr::count( name = "number_of_VSGs")
+
+```
+
+```{r}
+# Count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the first round of sequencing which included mouse 1 lung and the in vitro cells)
+SS3x_007_EATRO_count_table_Alex_good_single_cells <- read_delim("SS3x_007_Alex_General_stats/SS3x_007_EATRO_count_table_Alex_good_single_cells.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  rename(gene_id = ...1) %>%
+  separate(gene_id, c("gene_id", "trash"), sep = ":") %>%
+  select(-trash)
+
+# transforming from a matrix into a tidy table
+SS3x_007_EATRO_count_table_Alex_good_single_cells_df <- SS3x_007_EATRO_count_table_Alex_good_single_cells %>%
+  pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "read_count") 
+ 
+# The relative VSG UMI counts for each VSG in a cell. This is only for cells that passed the "good" cell thresholds with at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts
+SS3x_007_EATRO_VSG_expression_good_cells <- read_delim("VSG_expression_matixes/SS3x_007_EATRO_VSG_relative_expression_table_only_good_cells_Alex.tsv", 
+    delim = "\t", escape_double = FALSE, 
+    trim_ws = TRUE) %>%
+  rename(gene_id = ...1) 
+
+# Transforming the VSG expression matrix into a tidy table and cleaning up the names of cells and adding descriptions for the source of each cell. Also, labeling whether a cell was sorted based on AnTat1.1 staining or only on tdTomato.
+SS3x_007_EATRO_VSG_expression_df <- SS3x_007_EATRO_VSG_expression_good_cells %>%
+  pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "Percent") %>%
+  filter(Percent > 0) %>%
+  left_join(SS3x_007_EATRO_count_table_Alex_good_single_cells_df) %>%
+  separate(cell, "name", sep = "_R", remove = F) %>%
+  separate(name, c("well", "source"), sep = "_") %>%
+  mutate(sort = case_when(source == "AnTat" ~ "Antat",
+                          TRUE ~ "tdTom")) %>%
+  mutate(sort = case_when(str_detect(cell, "Lung_Antat") == TRUE & str_detect(well, "A|B|C|D") == TRUE ~ "Antat",  TRUE ~ sort)) %>%
+  mutate(source = case_when(source == "AnTat" ~ "Mix",
+                            TRUE ~ source)) %>%
+  mutate(experiment = "exp1") %>%
+  mutate(mouse = case_when(source == "Mix" ~ "invitro", 
+                           source == "Lung" ~ "mouse1")) %>%
+  mutate(source = case_when(source == "Lung" ~ "lung",
+                            source == "Mix" ~ "mix")) %>% 
+  rename(vsg = gene_id) %>%
+  left_join(VSG_geneids)
+  
+# eatro VSG expression with no antat sorted cells and only the one lung plate. (the other lung plates were sorted on antat and we did not want to include them because they could introduce bias) 
+
+Eatro_vsg_expression_df <- rbind(SS3x_007_EATRO_VSG_expression_df, SS3x_008_EATRO_VSG_relative_expression_df) %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cell, "Lung_R1") != T,
+         str_detect(cell, "Lung_Antat_R1") != T) 
+
+# 1360 cells passed cutoffs and had at least 1 VSG UMI read
+Eatro_vsg_expression_df %>%
+  filter(mouse != "invitro") %>%
+  select(cell, source, mouse) %>%
+  distinct() %>%
+  dplyr::count()
+```
+
+
+```{r}
+# Getting the average UMI read count per cell for both experiments
+SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy<- SS3x_007_EATRO_count_table_Alex_good_single_cells_df %>%
+  filter(read_count > 0) %>%
+  separate(cell, "name", sep = "_R", remove = F) %>%
+  separate(name, c("well", "source"), sep = "_") %>%
+  mutate(sort = case_when(source == "AnTat" ~ "Antat",
+                          TRUE ~ "tdTom")) %>%
+  mutate(sort = case_when(str_detect(cell, "Lung_Antat") == TRUE & str_detect(well, "A|B|C|D") == TRUE ~ "Antat",  TRUE ~ sort)) %>%
+  mutate(source = case_when(source == "AnTat" ~ "Mix",
+                            TRUE ~ source)) %>%
+  mutate(experiment = "exp1") %>%
+  mutate(mouse = case_when(source == "Mix" ~ "invitro", 
+                           source == "Lung" ~ "mouse1")) %>%
+  mutate(source = case_when(source == "Lung" ~ "lung",
+                            source == "Mix" ~ "mix"))
+
+SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy <- SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>% 
+  filter(str_detect(cell, "Lung_R1") != T,
+         str_detect(cell, "Lung_Antat_R1") != T)
+
+# Getting the total UMI counts per cell for the first experiment
+SS3x_007_read_count_per_cell <- SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy %>%
+  ungroup() %>%
+  group_by(cell, source, mouse) %>% 
+  summarise(total_UMI_count = sum(read_count))
+
+SS3x_008_EATRO_count_table_Alex_good_single_cells_df_tidy <-   SS3x_008_EATRO_count_table_Alex_good_single_cells_df %>%
+  filter(read_count > 0) %>%
+  separate(cell, c("well", "mouse","source"), sep = "_", remove = F) %>%
+  mutate(experiment = "exp2",
+         sort = "tdTom") 
+
+# Getting the total UMI counts per cell for the second experiment
+SS3x_008_read_count_per_cell <- SS3x_008_EATRO_count_table_Alex_good_single_cells_df_tidy %>%
+  ungroup() %>%
+  group_by(cell, source, mouse) %>% 
+  summarise(total_UMI_count = sum(read_count))
+
+# merging the read counts per cell from experiments
+read_count_per_cell <- rbind(SS3x_008_read_count_per_cell,SS3x_007_read_count_per_cell)
+
+# 1361 cells passed sequencing thresholds
+read_count_per_cell %>%
+  ungroup() %>%
+  select(source, mouse, cell) %>%
+  distinct() %>%
+  dplyr::count()
+
+# calculating the average read count per cell for each tissue from both mice
+avg_read_count_per_cell <- read_count_per_cell %>%
+  ungroup() %>%
+  group_by(source, mouse) %>%
+  summarise(mean = mean(total_UMI_count))
+  
+```
+
+```{r}
+#Finding how many cells are "good" and have VSG reads. 
+
+eatro_cells_with_vsg <- Eatro_vsg_expression_df %>%
+  filter(mouse != "invitro") %>%
+  filter(read_count > 1) %>%
+  select(cell) %>%
+  distinct()
+
+total_good_cells <- read_count_per_cell %>%
+  ungroup() %>%
+  select(cell) %>%
+  distinct()
+
+cell_with_no_vsg <- anti_join(total_good_cells, eatro_cells_with_vsg)
+
+# 1 cell (M11_mouse1_blood) is a "good" cell but does not have any VSG UMI counts, also no VSG assembled in that cell. This cell has fairly low read coverage with only 1800 total reads and many genes being represented by only one UMI count. 
+
+# 33 cells have VSGs that are represented by only 1 VSG UMI count by alignment and will be filtered out by requiring 1 VSG UMI per VSG. 
+
+# 120 cells have a total VSG UMI count under 10. Many cells with low VSG UMIs have several VSGs that are represented by a single UMI read.
+total_vsg_umi_count_per_cell <- Eatro_vsg_expression_df %>%
+  ungroup() %>%
+  select(cell, source, mouse, read_count) %>%
+  group_by(cell) %>%
+  summarise(total_vsg_umi_count = sum(read_count))
+```
+
+
+
+
+## Running the analysis two ways; with and without a 10 total VSG UMI filter
+
+I am going to essentially duplicate the analysis so that we a have figures and numbers for running this whole analysis using no VSG UMI cutoff for cells and requiring 10 total VSG UMIs for each cell. 
+
+
+
+### No VSG UMI filter 
+
+```{r}
+# Calculating the number of cells per tissue that pass cutoffs () 
+# 1327 total cells that pass cutoffs and have a VSG that has more than 1 VSG UMI count out of the total 1361 good cells. 
+summary_cell_numbers <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  select(cell, source, mouse) %>%
+  distinct() %>%
+  group_by(source, mouse) %>% 
+  dplyr::count()
+  
+```
+
+
+```{r}
+#Histograms (only filter is requiring more than 1 UMI reads to map to a VSG)
+
+eatro_histo_dat <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  group_by(cell, mouse, source) %>%
+  dplyr::count( name = "number_of_VSGs")
+
+# Mouse 1 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+mouse1_eatro_histo <- eatro_histo_dat %>%
+  filter(mouse == "mouse1") %>%
+  ggplot(aes(x = number_of_VSGs)) +
+  geom_histogram(binwidth = 1) +
+  theme_pubr(base_size = 20) + 
+  facet_wrap("source", scales = "free_y") +
+  ylab("Number of cells") +
+  xlab("Number of Eatro VSGs per a cell") +
+  ggtitle("Mouse 1") +
+  scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14))
+mouse1_eatro_histo
+
+ggsave("figures/mouse1_eatro_histo.pdf", mouse1_eatro_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+# Mouse 2 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+mouse2_eatro_histo <- eatro_histo_dat %>%
+  filter(mouse == "mouse2") %>%
+  ggplot(aes(x = number_of_VSGs)) +
+  geom_histogram(binwidth = 1) +
+  theme_pubr(base_size = 20) + 
+  facet_wrap("source", scales = "free_y") +
+  ylab("Number of cells") +
+  xlab("Number of Eatro VSGs per a cell") +
+  ggtitle("Mouse 2") +
+  scale_x_continuous(breaks=c(0,2,4,6,8,10))
+mouse2_eatro_histo
+
+ggsave("figures/mouse2_eatro_histo.pdf", mouse2_eatro_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+```
+
+
+```{r}
+
+# Violin plot showing the proportion of UMI reads that map to the most abundant VSG per cell. This is helpful for visualizing noise/ potential derepression and showing the 80% mapping cutoff as signifying monogenic expression
+
+eatro_violin_dat <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  group_by(cell) %>%
+  filter(Percent == max(Percent))
+
+eatro_violin_plot <- eatro_violin_dat %>%
+  filter(mouse != "invitro") %>%
+  ggplot(aes(x = source, y = Percent))+
+  facet_wrap("mouse", scales = "free_x") +
+  geom_violin() +
+  geom_hline(yintercept=.8, linetype="dashed") + 
+  scale_y_continuous(breaks = c(.20,.40,.60,.80,1.0)) +
+  geom_point(position = position_jitter(.3),
+             shape = 1,
+             alpha = .3) +
+  theme_pubr(base_size = 20) +
+  #scale_fill_manual(values = color_palette_12) +
+  scale_color_manual(values = color_palette_12) +
+  ylab("Proportion of UMI counts aligning to the most abundant VSG per cell")
+eatro_violin_plot
+
+ggsave("figures/eatro_violin_plot.pdf", eatro_violin_plot,
+       device = "pdf", width = 8, height = 6, units = "in")
+```
+
+```{r}
+
+# Still requiring VSGs to be represented by at least 2 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts. When there is a dominant VSG that VSG is considered to be monogenically expressed in a cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Segal's group has used and based on our violin plot seems to work well in our case as well. 
+
+eatro_dominant_vsgs_df <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  mutate(main_vsg = case_when(Percent > 0.80 ~ vsg)) %>%
+  group_by(cell) %>%
+  fill(main_vsg, .direction = "downup") %>%
+  mutate(main_vsg = case_when(is.na(main_vsg) == T ~ vsg, 
+                              TRUE ~ main_vsg))
+
+# counting the number of VSGs in each cell using 80% as a cutoff for calling a VSG monogenically expressed
+eatro_dom_vsg_counts <- eatro_dominant_vsgs_df %>%
+  select(cell,well, mouse, source, main_vsg, sort) %>% 
+  distinct() %>%
+  group_by(cell, mouse, source, sort) %>%
+  dplyr::count(name = "number_of_VSGs") 
+
+
+# visualizing how many cells in each space have one VSG by alignment or multiple using this definition of monogenic expression
+eatro_vsg_percent_multiple <- eatro_dom_vsg_counts %>%
+  group_by(source, mouse) %>%
+  mutate(one_or_multiple = case_when(number_of_VSGs == 1 ~ "one VSG",
+                                     number_of_VSGs > 1 ~ "multiple VSGs")) %>%
+  add_tally(name = "total_cell_count") %>%
+  group_by(source, mouse, total_cell_count) %>%
+  dplyr::count(one_or_multiple) %>%
+  mutate(percent_cells =  (n/total_cell_count)*100) %>%
+  filter(mouse != "invitro") %>%
+  ggplot(aes(y = percent_cells, x = source, fill = one_or_multiple)) +
+  geom_col() +
+  facet_wrap("mouse", scales = "free_x") +
+  theme_pubr(legend = "right") +
+  scale_fill_manual(values = color_palette_2)
+  
+eatro_vsg_percent_multiple
+
+ggsave("figures/eatro_vsg_percent_multiple.pdf", eatro_vsg_percent_multiple,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+```
+```{r}
+# Calculating the percentage of cells using genome alignment that are monogenically expressing a VSG (using a threshold of 80% to call a VSG the dominant and only VSG expressed in a cell)
+
+eatro_monogenic_cells <- eatro_dom_vsg_counts %>% 
+  ungroup() %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  mutate(description = case_when(number_of_VSGs == 1 ~ "monogenic expressor",
+                                 number_of_VSGs > 1 ~ "multi-VSG expressor")) %>%
+  select(cell, mouse, source, description) %>%
+  distinct() %>%
+  add_count(name = "total_cells") %>%
+  group_by(description, total_cells) %>%
+  dplyr::count(name = "cells") %>%
+  mutate(percent = (cells/ total_cells)*100)
+
+# 61.49% monogenic 38.5% multi-VSG expressors
+```
+
+
+```{r}
+
+# visualizing how many reads are represented by the most highly expressed VSG in each cell.
+eatro_dominant_vsgs_df %>%
+  group_by(cell) %>%
+  mutate(read_count = max(read_count)) %>%
+  select(cell, source, mouse, read_count) %>%
+  distinct() %>%
+  ggplot(aes(x = source, y = log10(read_count))) +
+  geom_violin() +
+  geom_point(alpha = .2, position = position_jitter(.2)) +
+  facet_wrap("mouse", scales = "free_x") +
+  scale_y_continuous(labels = c("0","10", "100", "1000"))
+```
+
+```{r}
+
+# showing the correlation to total VSG UMI count and the number of VSGs detected by alignment. There is a slight correlation with more reads lending to detecting more VSGs. Each dot represents a single cell
+eatro_reads_per_cell <- eatro_dominant_vsgs_df %>%
+  select(cell, read_count) %>%
+  group_by(cell) %>%
+  summarise(total_reads = sum(read_count)) %>%
+  left_join(eatro_histo_dat) %>%
+  ggplot(aes(x = number_of_VSGs, y = total_reads)) +
+  ylab("Total VSG UMI count") +
+  geom_point(alpha = .2, position = position_jitter(.2))
+eatro_reads_per_cell
+```
+
+
+```{r}
+
+# Number of total cells with a de novo assembled VSG
+dominant_vsgs_per_source %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  ungroup() %>%
+  select(cellid_2) %>%
+  distinct() %>%
+  dplyr::count()
+
+# total cells by alignment passing cutoffs and that have a VSG with >1 UMI count
+eatro_dom_vsg_counts %>% 
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  ungroup() %>%
+  select(cell) %>%
+  distinct() %>%
+  dplyr::count()
+
+```
+
+
+```{r}
+# combining eatro mapping and assembled VSG counts for each cell. This is with a filter calling a single VSG expressed in a cell if that VSG represents 80% or more of the VSG reads. 
+
+#Some of the mapped VSGs for a cell represent a very small number of reads. which probably explains why a VSG did not assembled in some of the cells that are "good".  
+
+
+eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
+  rename(cell = cellid_2,
+         assembled_vsgs = dominant_number_of_vsgs_in_sample) %>%
+  right_join(eatro_dom_vsg_counts) %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cell, "Lung_R1") != T,
+         str_detect(cell, "Lung_Antat_R1") != T) 
+
+
+# Visualizing the correlation between the number of VSGs by de novo assembly and the number of VSGs by alignement per cell
+eatro_and_assembled_counts_cor <- eatro_and_assembled_counts %>%
+  ggplot(aes(x = number_of_VSGs, y = assembled_vsgs)) + 
+  geom_point(position = position_jitter()) +
+  theme_pubr()
+eatro_and_assembled_counts_cor
+
+```
+
+
+```{r}
+# Creating a description for each cell depending on how many VSGs were assembled and how many were detected by alignment. This is using the threshold of calling a VSG monogenically expressed if it represents 80% or more of the VSG UMI counts or reads in the case of de novo assembly. 
+
+eatro_and_assembled_counts <- eatro_and_assembled_counts %>%
+  mutate(cell_description = case_when(number_of_VSGs == 1 & assembled_vsgs == 1 ~ "1 VSG by alignment, 1 VSG detected de novo",
+                                      number_of_VSGs == 1 & assembled_vsgs > 1 ~ "1 VSG by alignment, > 1 detected de novo",
+                                      number_of_VSGs == 1 & is.na(assembled_vsgs) == T ~ "1 VSG by alignment, no VSG detected de novo",
+                                      number_of_VSGs > 1 & assembled_vsgs > 1 ~ ">1 VSGs by alignment, >1 VSG detected de novo",
+                                      number_of_VSGs > 1 & assembled_vsgs == 1 ~ ">1 VSGs by alignment, 1 VSG detected de novo",
+                                      number_of_VSGs > 1 & is.na(assembled_vsgs) ~ ">1 VSGs by alignment, no VSG detected de novo")) %>%
+  mutate(cell_description = factor(cell_description, levels = c("1 VSG by alignment, 1 VSG detected de novo", ">1 VSGs by alignment, 1 VSG detected de novo", "1 VSG by alignment, no VSG detected de novo", "1 VSG by alignment, > 1 detected de novo", ">1 VSGs by alignment, >1 VSG detected de novo", ">1 VSGs by alignment, no VSG detected de novo")))
+
+
+# Why do we have lots of cells with 1 VSG detected by de novo assembly but many VSGs by alignment to the EATRO genome? Maybe the assembled VSG ORFs are not in the EATRO genome?
+
+# To figure this out I am going select these cells, find the VSG ORFS that were assembled in them, and compare them to the EATRO genome. 
+cells_with_multialign_1_assemble <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(cellid) %>%
+  distinct() %>%
+  left_join(results) 
+
+cells_with_multialign_1_assemble %>%
+  ungroup() %>%
+  select(cellid_2) %>%
+  distinct() %>%
+  dplyr::count()
+
+# We only want the "dominant" assembled VSG per cell 
+cells_with_multialign_1_assemble_vsgs <- cells_with_multialign_1_assemble %>%
+  filter(Percent > 80) %>%
+  select(VSG) %>%
+  distinct()
+  
+# Load in all of the VSG orfs assembled 
+sc_seq_all_orfs <- read.fasta(file = "all_vsg_orfs/all_vsg_orfs_bothexps.fa")
+
+
+# finding the names of all these clusters that have this problem
+problem_clusters <- names(sc_seq_all_orfs)  %in% cells_with_multialign_1_assemble_vsgs$VSG
+problem_clusters[problem_clusters == TRUE] # 428 total clusters
+
+problem_cluster_orfs <- sc_seq_all_orfs[c(which(names(sc_seq_all_orfs) %in% cells_with_multialign_1_assemble_vsgs$VSG))]
+
+#writing these clusters into a FASTA
+write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = "assembled_orf_blast_vs_ref//problem_cluster_orfs.fa")
+ 
+```
+
+```{r}
+
+#44 clusters that this represents
+
+number_unclear_vsgs <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(unclear_vsgs = case_when(cell_description == ">1 VSGs by alignment, no VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, unclear_vsgs) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, unclear_vsgs, total_cells) %>%
+  dplyr::count(name = "num_likely_doubl_vsgs") %>%
+  filter(unclear_vsgs == "y") %>%
+  mutate(percent_unclear_vsgs = (num_likely_doubl_vsgs/total_cells)*100) %>% 
+  mutate(space = case_when(source == "blood" ~ "blood", 
+                           TRUE ~ "tissue")) %>%
+  group_by(space) %>%
+  summarize(mean_unclear = mean(percent_unclear_vsgs))
+
+# With >1 UMI required for calling a VSG detected.
+# 8.7 % on average unclear VSG expression in the blood 
+# 4.0 % on average unclear VSG expression in tissues
+  
+
+# Calculating the percent of cells that are likely expressing two or more VSGs per sample.
+number_multi_vsgs <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(likely_doubl_vsgs = case_when(cell_description == "1 VSG by alignment, > 1 detected de novo" ~ "y",
+                                      cell_description == ">1 VSGs by alignment, >1 VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, likely_doubl_vsgs) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, likely_doubl_vsgs, total_cells) %>%
+  dplyr::count(name = "num_likely_doubl_vsgs") %>%
+  filter(likely_doubl_vsgs == "y") %>%
+  mutate(percent_likely_doubl_vsgs = (num_likely_doubl_vsgs/total_cells)*100)
+
+# The total percent of cells likely expressing two or more VSGs
+multi_vsgs_summarized <- number_multi_vsgs %>%
+  ungroup() %>%
+  summarise(mean = mean(percent_likely_doubl_vsgs), 
+            sum = sum(num_likely_doubl_vsgs))
+# 1.36% of cells are likely expressing two or more VSGs
+
+
+# calculating the number of cells that are likely monogenically expressing a VSG
+number_monogenic <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(likely_monogenic = case_when(cell_description == "1 VSG by alignment, 1 VSG detected de novo" ~ "y",
+                                      cell_description == ">1 VSGs by alignment, 1 VSG detected de novo" ~ "y",
+                                      cell_description == "1 VSG by alignment, no VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, likely_monogenic) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, likely_monogenic, total_cells) %>%
+  dplyr::count(name = "num_likely_monogenic") %>%
+  filter(likely_monogenic == "y") %>%
+  mutate(percent_likely_monogenic = (num_likely_monogenic/total_cells)*100)
+
+number_monogenic_summarized <- number_monogenic %>%
+  ungroup() %>%
+  summarise(total_cells = sum(total_cells),
+            total_likely_monogenic = sum(num_likely_monogenic)) %>%
+  mutate(percent = (total_likely_monogenic / total_cells)*100)
+# 92.8 % of total cells are likely monogenically expressing a VSG
+
+
+# Calculating the percentage of cells in the blood and tissues that are likely multi VSG expressors.
+number_multiple_vsgs <- eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  dplyr::add_tally(name = "total_cell_count") %>%
+  group_by(mouse, source, cell_description, total_cell_count) %>%
+  dplyr::count(name = "cell_count") %>%
+  mutate(percentage_cells = (cell_count/total_cell_count)*100) %>%
+  filter(cell_description == ">1 VSGs by alignment, >1 VSG detected de novo" | 
+         cell_description  == "1 VSG by alignment, > 1 detected de novo") %>%
+  mutate(type = case_when(source == "blood" ~ "blood",
+                          T ~ "tissue")) %>%
+  ungroup() %>%
+  group_by(type) %>%
+  summarise(sum = sum(cell_count),
+            total_cells = sum(total_cell_count)) %>%
+  mutate(percent = (sum/total_cells)*100)
+# blood = 0.87%
+# tissues = 0.98% 
+
+# Calculating the percentage of cells that have >1 vsg by alignment and no vsg detected by de novo assembly
+number_no_assembly <- eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  dplyr::add_tally(name = "total_cell_count") %>%
+  group_by(mouse, source, cell_description, total_cell_count) %>%
+  dplyr::count(name = "cell_count") %>% 
+  filter(cell_description == ">1 VSGs by alignment, no VSG detected de novo") %>%
+  ungroup() %>%
+  summarise(sum = sum(cell_count),
+            total_cells = 1327) %>% # had to manually put in the total cells 
+  mutate(percent = (sum/total_cells)*100) 
+
+# 5.9% had at > 1 VSG by alignment but no vsgs detected by de novo assembly.
+```  
+  
+
+```{r}
+# Creating summary table for Sup table 2. 
+eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
+   filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  select(cell,mouse, source, cell_description) %>%
+  group_by(mouse, source, cell_description) %>%
+  dplyr::count() %>%
+  pivot_wider(names_from = cell_description, values_from = n) %>%
+  mutate_all(funs(ifelse(is.na(.), 0, .)))
+
+write_csv(eatro_and_assembled_counts_summary, "eatro_and_assembled_counts_summary.csv")
+```
+
+```{r}
+# Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5d. 
+
+eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
+   filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  ggplot(aes(x = source, fill = cell_description)) + 
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  facet_wrap("mouse", scales = "free_x") +
+  theme_pubr(legend = "right", base_size = 20, x.text.angle = 45) +
+  xlab("") +
+  ylab("Percentage of cells") +
+  scale_fill_manual(values = color_palette_6)
+
+eatro_and_assembled_counts_bar
+
+ggsave("figures/eatro_and_assembled_counts_80p.pdf", eatro_and_assembled_counts_bar,
+       device = "pdf", width = 12, height = 6, units = "in")
+
+```
+
+```{r}
+# L15_mouse2_heart could be mid-switch? 
+
+eatro_and_assembled_counts %>% 
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  ungroup() %>%
+  select(cell, source, mouse) %>%
+  distinct() %>%
+  dplyr::count(name = "number_of_cells_analyzed")
+
+
+# Number of cells that have multiple VSGs by alignment but only one VSG by de novo assembly
+eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  ungroup() %>% 
+  group_by(source, mouse) %>% 
+  add_count(name = "total_cells") %>%
+  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
+  ungroup() %>%
+  select(cell, cell_description) %>%
+  distinct() %>%
+  group_by(cell_description) %>%
+  summarize(group_count = n()) 
+  
+```
+
+```{r}
+
+# 428 cells with >1 VSG by alignment but 1 de novo assembled VSG
+
+# only 13.5% have a VSG well represented in the genome (58 cells)
+
+# 95.8 % 
+
+problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
+  rename(query_id = VSG)
+
+library(metablastr)
+
+trin_cluster_names <- results %>%
+  ungroup() %>%
+  select(VSG, cluster) %>%
+  distinct() %>%
+  rename(query_id = VSG)
+
+blast_test <- blast_nucleotide_to_nucleotide(
+                 query   = system.file('seqs/qry_nn.fa', package = 'metablastr'),
+                 subject = system.file('seqs/sbj_nn.fa', package = 'metablastr'),
+                 output.path = tempdir(),
+                 db.import  = FALSE)
+
+# blast of all the assembled vsg orfs in cells that had multiple VSG hits by alignment but only one vsg by assembly. I blasted against all the annotated regions of the EATRO1125 genome Raul sent. 
+
+eatro_blast <- blast_nucleotide_to_nucleotide(
+  query = "assembled_orf_blast_vs_ref/problem_cluster_orfs.fa",
+  subject = "assembled_orf_blast_vs_ref/genome_blastdb/TriTrypDB-67_TbruceiEATRO1125_Genome_annotated_seqs.fasta",
+  output.path = "assembled_orf_blast_vs_ref/",
+  db.import  = FALSE,
+  evalue = 1*10^-15
+) 
+
+eatro_blast <- eatro_blast %>% 
+  mutate(q_len_cov = (q_end - q_start+1)) %>%
+  mutate(q_perc_cov = (q_len_cov/q_len)*100) %>%
+  distinct()
+
+
+eatro_blast_filt <- eatro_blast %>%
+  group_by(query_id) %>%
+  filter(q_len_cov == max(q_len_cov)) %>%
+  filter(bit_score == max(bit_score)) %>%
+  left_join(trin_cluster_names) %>%
+  distinct() %>%
+  mutate(perf_hit_vsg = case_when(q_perc_cov > 98.0 & perc_identity > 98.0 ~ "y",
+                             TRUE ~ "n"))
+
+eatro_blast_perf_hit <- eatro_blast_filt %>%
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  mutate(description = "cell with a perfect hit in ref") %>%
+  select(-cluster) # 58 cells with a near perfect hit in the genome (>98% q_perc_cov + >98% perc_identity )
+
+problem_cells <- left_join(problem_cells, eatro_blast_perf_hit)
+
+#find out how many cells of the ones that are well represented in the genome that have very close other similar hits
+
+close_hits <-  eatro_blast_filt %>%
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  left_join(eatro_blast)  %>%
+  group_by(query_id) %>%
+  slice_max(q_len_cov, n = 10) %>%
+  slice_max(perc_identity, n = 5) %>%
+  ungroup() %>%
+  filter(q_perc_cov > 80) %>%
+  filter(perc_identity > 80) %>%
+  select(query_id, subject_id, perc_identity, q_perc_cov, cluster) %>%
+  distinct() 
+
+# the number of cells that have well represented VSG in the genome and dont have other similar VSGs
+# 18 cells which is 4.2% of the 355 with >1 VSG by alignment but 1 de novo assembled VSG that have a well represented VSG in the genome and no other similar VSGs
+
+cells_with_well_represented_and_no_other_hits <- close_hits %>%
+  ungroup() %>%
+  group_by(query_id) %>%
+  summarize(count = n()) %>%
+  mutate(count = case_when(query_id == "TRINITY_DN0_c0_g1_i1_1_53_1246_L21_Lung_R2_cell_CACTAACG+AGAGACTC" ~ 2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_2_1177_RC_B23_Lung_R2_cell_TAGCGCTT+GTAGAAGG" ~ 2, 
+                           query_id == "TRINITY_DN1_c0_g1_i4_1_0_1183_RC_K17_Lung_R2_cell_CTCATGTC+ACGAGTCT" ~2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_76_997_A10_Lung_R2_cell_CGATTGGT+GTGTAACC" ~ 2,
+                           query_id == "TRINITY_DN8_c0_g1_i4_1_427_1537_RC_B19_Lung_R2_cell_TCGAACGA+GTAGAAGG" ~ 2,
+                           query_id == "TRINITY_DN1_c0_g1_i2_1_0_1228_RC_A21_Lung_R2_cell_CACTAACG+GTGTAACC" ~ 2,
+                           TRUE ~ count))%>%
+  filter(count == 1) 
+#These cells had cluster 59 (or cluster 25 which is VSG-60) which is a mix of VSG-60 and VSG-72 but the VSG assembled in these cells was a little shorter than the full length so i had to manually correct
+
+# mouse1_fat_single_cell_D22 is a cell with a partially assembled VSG (1125VSG-39). While other members of the cluster do not have multiple VSGs by read alignment this cell appears to only assemble to fron 1000bp/1490bp orf (total length of VSG 39) Thus could represent a mosaic that isnt fully assembled. The other VSG reads align to is VSG 25
+
+# mouse1_blood_single_cell_L11 is a a cell with a partially assembled VSG (1125VSG-430). While other members of the cluster do not have multiple VSGs (in this case only one other cell) by read alignment this cell appears to only assemble to fron 776bp/1300bp orf (total length of VSG 430) Thus could represent a mosaic that isnt fully assembled. The other VSG reads align to is VSG 1293 and a few others.
+
+# what if these cells represent a cell with an active break or very recent break in the VSG orf and can only produce reads transcripts from part of the orf? or maybe a mosiac is the easiter answer.
+
+# mouse1_fat_single_cell_I9 assembled VSG-421 perfectly and it matches the version in the genome. But by read alignment it hits VSG-421 and Tbb1125VSG-4257 
+
+
+# 1125VSG-1293 appears in many cells in relatively low quantities and could represent noise. 
+
+#TRINITY_DN9_c0_g1_i1_1_1_878_RC_mouse1_fat_singl
+```
+
+
+### Requiring 10 VSG UMI count for cells
+
+```{r}
+
+# Table of total VSG UMI counts in cells
+total_vsg_umi_count_per_cell 
+
+# Join total VSG UMI counts with the EATRO VSG expression dataset 
+Eatro_vsg_expression_df <- left_join(Eatro_vsg_expression_df, total_vsg_umi_count_per_cell)
+
+# Filter out all cells with less than 10 total VSG UMIs 
+Eatro_vsg_expression_df <- Eatro_vsg_expression_df %>%
+  filter(total_vsg_umi_count > 10)
+
+# Calculating the number of cells per tissue that pass cutoffs () 
+# 1216 total cells that pass cutoffs and have a VSG that has more than 1 VSG UMI count out of the total 1361 good cells. 
+summary_cell_numbers <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  select(cell, source, mouse) %>%
+  distinct() %>%
+  group_by(source, mouse) %>% 
+  dplyr::count()
+  
+```
+
+
+```{r}
+#Histograms (only filter is requiring more than 1 UMI reads to map to a VSG)
+
+eatro_histo_dat <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  group_by(cell, mouse, source) %>%
+  dplyr::count( name = "number_of_VSGs")
+
+# Mouse 1 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+mouse1_eatro_histo <- eatro_histo_dat %>%
+  filter(mouse == "mouse1") %>%
+  ggplot(aes(x = number_of_VSGs)) +
+  geom_histogram(binwidth = 1) +
+  theme_pubr(base_size = 20) + 
+  facet_wrap("source", scales = "free_y") +
+  ylab("Number of cells") +
+  xlab("Number of Eatro VSGs per a cell") +
+  ggtitle("Mouse 1") +
+  scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14))
+mouse1_eatro_histo
+
+ggsave("figures/mouse1_eatro_histo_10umi.pdf", mouse1_eatro_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+# Mouse 2 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+mouse2_eatro_histo <- eatro_histo_dat %>%
+  filter(mouse == "mouse2") %>%
+  ggplot(aes(x = number_of_VSGs)) +
+  geom_histogram(binwidth = 1) +
+  theme_pubr(base_size = 20) + 
+  facet_wrap("source", scales = "free_y") +
+  ylab("Number of cells") +
+  xlab("Number of Eatro VSGs per a cell") +
+  ggtitle("Mouse 2") +
+  scale_x_continuous(breaks=c(0,2,4,6,8,10))
+mouse2_eatro_histo
+
+ggsave("figures/mouse2_eatro_histo_10umi.pdf", mouse2_eatro_histo,
+       device = "pdf", width = 8, height = 6, units = "in")
+```
+
+
+```{r}
+
+# Violin plot showing the proportion of UMI reads that map to the most abundant VSG per cell. This is helpful for visualizing noise/ potential derepression and showing the 80% mapping cutoff as signifying monogenic expression
+
+eatro_violin_dat <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  group_by(cell) %>%
+  filter(Percent == max(Percent))
+
+eatro_violin_plot <- eatro_violin_dat %>%
+  filter(mouse != "invitro") %>%
+  ggplot(aes(x = source, y = Percent))+
+  facet_wrap("mouse", scales = "free_x") +
+  geom_violin() +
+  geom_hline(yintercept=.8, linetype="dashed") + 
+  scale_y_continuous(breaks = c(.20,.40,.60,.80,1.0)) +
+  geom_point(position = position_jitter(.3),
+             shape = 1,
+             alpha = .3) +
+  theme_pubr(base_size = 20) +
+  #scale_fill_manual(values = color_palette_12) +
+  scale_color_manual(values = color_palette_12) +
+  ylab("Proportion of UMI counts aligning to the most abundant VSG per cell")
+eatro_violin_plot
+
+ggsave("figures/eatro_violin_plot_10umi.pdf", eatro_violin_plot,
+       device = "pdf", width = 8, height = 6, units = "in")
+```
+
+```{r}
+
+# Still requiring VSGs to be represented by at least 2 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts. When there is a dominant VSG that VSG is considered to be monogenically expressed in a cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Segal's group has used and based on our violin plot seems to work well in our case as well. 
+
+eatro_dominant_vsgs_df <- Eatro_vsg_expression_df %>%
+  filter(read_count > 1) %>%
+  mutate(main_vsg = case_when(Percent > 0.80 ~ vsg)) %>%
+  group_by(cell) %>%
+  fill(main_vsg, .direction = "downup") %>%
+  mutate(main_vsg = case_when(is.na(main_vsg) == T ~ vsg, 
+                              TRUE ~ main_vsg))
+
+# counting the number of VSGs in each cell using 80% as a cutoff for calling a VSG monogenically expressed
+eatro_dom_vsg_counts <- eatro_dominant_vsgs_df %>%
+  select(cell,well, mouse, source, main_vsg, sort) %>% 
+  distinct() %>%
+  group_by(cell, mouse, source, sort) %>%
+  dplyr::count(name = "number_of_VSGs") 
+
+
+# visualizing how many cells in each space have one VSG by alignment or multiple using this definition of monogenic expression
+eatro_vsg_percent_multiple <- eatro_dom_vsg_counts %>%
+  group_by(source, mouse) %>%
+  mutate(one_or_multiple = case_when(number_of_VSGs == 1 ~ "one VSG",
+                                     number_of_VSGs > 1 ~ "multiple VSGs")) %>%
+  add_tally(name = "total_cell_count") %>%
+  group_by(source, mouse, total_cell_count) %>%
+  dplyr::count(one_or_multiple) %>%
+  mutate(percent_cells =  (n/total_cell_count)*100) %>%
+  filter(mouse != "invitro") %>%
+  ggplot(aes(y = percent_cells, x = source, fill = one_or_multiple)) +
+  geom_col() +
+  facet_wrap("mouse", scales = "free_x") +
+  theme_pubr(legend = "right") +
+  scale_fill_manual(values = color_palette_2)
+  
+eatro_vsg_percent_multiple
+
+ggsave("figures/eatro_vsg_percent_multiple_10umi.pdf", eatro_vsg_percent_multiple,
+       device = "pdf", width = 8, height = 6, units = "in")
+
+```
+```{r}
+# Calculating the percentage of cells using genome alignment that are monogenically expressing a VSG (using a threshold of 80% to call a VSG the dominant and only VSG expressed in a cell)
+
+eatro_monogenic_cells <- eatro_dom_vsg_counts %>% 
+  ungroup() %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  mutate(description = case_when(number_of_VSGs == 1 ~ "monogenic expressor",
+                                 number_of_VSGs > 1 ~ "multi-VSG expressor")) %>%
+  select(cell, mouse, source, description) %>%
+  distinct() %>%
+  add_count(name = "total_cells") %>%
+  group_by(description, total_cells) %>%
+  dplyr::count(name = "cells") %>%
+  mutate(percent = (cells/ total_cells)*100)
+
+# 62.79% monogenic 37.2% multi-VSG expressors
+```
+
+
+```{r}
+
+# visualizing how many reads are represented by the most highly expressed VSG in each cell.
+eatro_dominant_vsgs_df %>%
+  group_by(cell) %>%
+  mutate(read_count = max(read_count)) %>%
+  select(cell, source, mouse, read_count) %>%
+  distinct() %>%
+  ggplot(aes(x = source, y = log10(read_count))) +
+  geom_violin() +
+  geom_point(alpha = .2, position = position_jitter(.2)) +
+  facet_wrap("mouse", scales = "free_x") +
+  scale_y_continuous(labels = c("0","10", "100", "1000"))
+```
+
+```{r}
+
+# showing the correlation to total VSG UMI count and the number of VSGs detected by alignment. There is a slight correlation with more reads lending to detecting more VSGs. Each dot represents a single cell
+eatro_reads_per_cell <- eatro_dominant_vsgs_df %>%
+  select(cell, read_count) %>%
+  group_by(cell) %>%
+  summarise(total_reads = sum(read_count)) %>%
+  left_join(eatro_histo_dat) %>%
+  ggplot(aes(x = number_of_VSGs, y = total_reads)) +
+  ylab("Total VSG UMI count") +
+  geom_point(alpha = .2, position = position_jitter(.2))
+eatro_reads_per_cell
+```
+
+
+```{r}
+
+# Number of total cells with a de novo assembled VSG
+dominant_vsgs_per_source %>%
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  ungroup() %>%
+  select(cellid_2) %>%
+  distinct() %>%
+  dplyr::count()
+
+# total cells by alignment passing cutoffs and that have a VSG with >1 UMI count
+eatro_dom_vsg_counts %>% 
+  filter(mouse != "invitro",
+         sort == "tdTom") %>%
+  ungroup() %>%
+  select(cell) %>%
+  distinct() %>%
+  dplyr::count()
+
+```
+
+
+```{r}
+# combining eatro mapping and assembled VSG counts for each cell. This is with a filter calling a single VSG expressed in a cell if that VSG represents 80% or more of the VSG reads. 
+
+#Some of the mapped VSGs for a cell represent a very small number of reads. which probably explains why a VSG did not assembled in some of the cells that are "good".  
+
+
+eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
+  rename(cell = cellid_2,
+         assembled_vsgs = dominant_number_of_vsgs_in_sample) %>%
+  right_join(eatro_dom_vsg_counts) %>%
+  filter(sort == "tdTom") %>%
+  filter(str_detect(cell, "Lung_R1") != T,
+         str_detect(cell, "Lung_Antat_R1") != T) 
+
+
+# Visualizing the correlation between the number of VSGs by de novo assembly and the number of VSGs by alignement per cell
+eatro_and_assembled_counts_cor <- eatro_and_assembled_counts %>%
+  ggplot(aes(x = number_of_VSGs, y = assembled_vsgs)) + 
+  geom_point(position = position_jitter()) +
+  theme_pubr()
+eatro_and_assembled_counts_cor
+
+```
+
+
+```{r}
+# Creating a description for each cell depending on how many VSGs were assembled and how many were detected by alignment. This is using the threshold of calling a VSG monogenically expressed if it represents 80% or more of the VSG UMI counts or reads in the case of de novo assembly. 
+
+eatro_and_assembled_counts <- eatro_and_assembled_counts %>%
+  mutate(cell_description = case_when(number_of_VSGs == 1 & assembled_vsgs == 1 ~ "1 VSG by alignment, 1 VSG detected de novo",
+                                      number_of_VSGs == 1 & assembled_vsgs > 1 ~ "1 VSG by alignment, > 1 detected de novo",
+                                      number_of_VSGs == 1 & is.na(assembled_vsgs) == T ~ "1 VSG by alignment, no VSG detected de novo",
+                                      number_of_VSGs > 1 & assembled_vsgs > 1 ~ ">1 VSGs by alignment, >1 VSG detected de novo",
+                                      number_of_VSGs > 1 & assembled_vsgs == 1 ~ ">1 VSGs by alignment, 1 VSG detected de novo",
+                                      number_of_VSGs > 1 & is.na(assembled_vsgs) ~ ">1 VSGs by alignment, no VSG detected de novo")) %>%
+  mutate(cell_description = factor(cell_description, levels = c("1 VSG by alignment, 1 VSG detected de novo", ">1 VSGs by alignment, 1 VSG detected de novo", "1 VSG by alignment, no VSG detected de novo", "1 VSG by alignment, > 1 detected de novo", ">1 VSGs by alignment, >1 VSG detected de novo", ">1 VSGs by alignment, no VSG detected de novo")))
+
+
+# Why do we have lots of cells with 1 VSG detected by de novo assembly but many VSGs by alignment to the EATRO genome? Maybe the assembled VSG ORFs are not in the EATRO genome?
+
+
+# the number of cells with multialignment to VSGs but only one VSG by de novo, 385 of 453 total cells 
+multialign_but_1_de_novo <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo" |
+         cell_description == ">1 VSGs by alignment, >1 VSG detected de novo" | 
+         cell_description == ">1 VSGs by alignment, no VSG detected de novo") %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(cell, cell_description) %>%
+  distinct() %>%
+  group_by(cell_description) %>%
+  dplyr::count()
+
+
+# To figure this out I am going select these cells, find the VSG ORFS that were assembled in them, and compare them to the EATRO genome. 
+cells_with_multialign_1_assemble <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(cellid) %>%
+  distinct() %>%
+  left_join(results) 
+
+cells_with_multialign_1_assemble %>%
+  ungroup() %>%
+  select(cellid_2) %>%
+  distinct() %>%
+  dplyr::count()
+
+# We only want the "dominant" assembled VSG per cell 
+cells_with_multialign_1_assemble_vsgs <- cells_with_multialign_1_assemble %>%
+  filter(Percent > 80) %>%
+  select(VSG) %>%
+  distinct()
+  
+# Load in all of the VSG orfs assembled 
+sc_seq_all_orfs <- read.fasta(file = "all_vsg_orfs/all_vsg_orfs_bothexps.fa")
+
+
+# finding the names of all these clusters that have this problem
+problem_clusters <- names(sc_seq_all_orfs)  %in% cells_with_multialign_1_assemble_vsgs$VSG
+problem_clusters[problem_clusters == TRUE] # 428 total clusters
+
+problem_cluster_orfs <- sc_seq_all_orfs[c(which(names(sc_seq_all_orfs) %in% cells_with_multialign_1_assemble_vsgs$VSG))]
+
+#writing these clusters into a FASTA
+write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = "assembled_orf_blast_vs_ref//problem_cluster_orfs.fa")
+ 
+```
+
+```{r}
+
+#44 clusters that this represents
+
+number_unclear_vsgs <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(unclear_vsgs = case_when(cell_description == ">1 VSGs by alignment, no VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, unclear_vsgs) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, unclear_vsgs, total_cells) %>%
+  dplyr::count(name = "num_likely_doubl_vsgs") %>%
+  filter(unclear_vsgs == "y") %>%
+  mutate(percent_unclear_vsgs = (num_likely_doubl_vsgs/total_cells)*100) %>% 
+  mutate(space = case_when(source == "blood" ~ "blood", 
+                           TRUE ~ "tissue")) %>%
+  group_by(space) %>%
+  summarize(mean_unclear = mean(percent_unclear_vsgs))
+
+# With >1 UMI required for calling a VSG detected. and >10 VSG UMI counts
+# 7.47 % on average unclear VSG expression in the blood 
+# 3.9 % on average unclear VSG expression in tissues
+  
+
+# Calculating the percent of cells that are likely expressing two or more VSGs per sample.
+number_multi_vsgs <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(likely_doubl_vsgs = case_when(cell_description == "1 VSG by alignment, > 1 detected de novo" ~ "y",
+                                      cell_description == ">1 VSGs by alignment, >1 VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, likely_doubl_vsgs) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, likely_doubl_vsgs, total_cells) %>%
+  dplyr::count(name = "num_likely_doubl_vsgs") %>%
+  filter(likely_doubl_vsgs == "y") %>%
+  mutate(percent_likely_doubl_vsgs = (num_likely_doubl_vsgs/total_cells)*100)
+
+# The total percent of cells likely expressing two or more VSGs
+multi_vsgs_summarized <- number_multi_vsgs %>%
+  ungroup() %>%
+  summarise(mean = mean(percent_likely_doubl_vsgs), 
+            sum = sum(num_likely_doubl_vsgs))
+# 1.50% of cells are likely expressing two or more VSGs
+
+
+# calculating the number of cells that are likely monogenically expressing a VSG
+number_monogenic <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  mutate(likely_monogenic = case_when(cell_description == "1 VSG by alignment, 1 VSG detected de novo" ~ "y",
+                                      cell_description == ">1 VSGs by alignment, 1 VSG detected de novo" ~ "y",
+                                      cell_description == "1 VSG by alignment, no VSG detected de novo" ~ "y",
+                                      TRUE ~ "n")) %>%
+  select(cell,source, mouse, likely_monogenic) %>%
+  distinct() %>%
+  group_by(source, mouse) %>%
+  add_count(name = "total_cells") %>%
+  group_by(source, mouse, likely_monogenic, total_cells) %>%
+  dplyr::count(name = "num_likely_monogenic") %>%
+  filter(likely_monogenic == "y") %>%
+  mutate(percent_likely_monogenic = (num_likely_monogenic/total_cells)*100)
+
+number_monogenic_summarized <- number_monogenic %>%
+  ungroup() %>%
+  summarise(total_cells = sum(total_cells),
+            total_likely_monogenic = sum(num_likely_monogenic)) %>%
+  mutate(percent = (total_likely_monogenic / total_cells)*100)
+# 93.4% of total cells are likely monogenically expressing a VSG
+
+
+# Calculating the percentage of cells in the blood and tissues that are likely multi VSG expressors.
+number_multiple_vsgs <- eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  dplyr::add_tally(name = "total_cell_count") %>%
+  group_by(mouse, source, cell_description, total_cell_count) %>%
+  dplyr::count(name = "cell_count") %>%
+  mutate(percentage_cells = (cell_count/total_cell_count)*100) %>%
+  filter(cell_description == ">1 VSGs by alignment, >1 VSG detected de novo" | 
+         cell_description  == "1 VSG by alignment, > 1 detected de novo") %>%
+  mutate(type = case_when(source == "blood" ~ "blood",
+                          T ~ "tissue")) %>%
+  ungroup() %>%
+  group_by(type) %>%
+  summarise(sum = sum(cell_count),
+            total_cells = sum(total_cell_count)) %>%
+  mutate(percent = (sum/total_cells)*100)
+# blood = 1.05%
+# tissues = 1.03% 
+
+# Calculating the percentage of cells that have >1 vsg by alignment and no vsg detected by de novo assembly
+number_no_assembly <- eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  dplyr::add_tally(name = "total_cell_count") %>%
+  group_by(mouse, source, cell_description, total_cell_count) %>%
+  dplyr::count(name = "cell_count") %>% 
+  filter(cell_description == ">1 VSGs by alignment, no VSG detected de novo") %>%
+  ungroup() %>%
+  summarise(sum = sum(cell_count),
+            total_cells = 1216) %>% # had to manually put in the total cells 
+  mutate(percent = (sum/total_cells)*100) 
+
+# 4.8% had at > 1 VSG by alignment but no vsgs detected by de novo assembly.
+```  
+  
+
+```{r}
+library(openxlsx)
+
+# Creating summary table for Sup table 2. 
+eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
+   filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  select(cell,mouse, source, cell_description) %>%
+  group_by(mouse, source, cell_description) %>%
+  dplyr::count() %>%
+  pivot_wider(names_from = cell_description, values_from = n) %>%
+  mutate_all(funs(ifelse(is.na(.), 0, .)))
+
+write_csv(eatro_and_assembled_counts_summary, "eatro_and_assembled_counts_summary_10umi.csv")
+
+
+# Making a table summarizing de novo and alignment VSG counts per cell including UMI counts
+supplementary_table_1 <- eatro_and_assembled_counts %>%
+  ungroup() %>%
+  select(-main_vsg, -sort, -cellid) %>%
+  distinct() %>%
+  filter(mouse != "invitro")%>% 
+  left_join(read_count_per_cell) %>%
+  left_join(total_vsg_umi_count_per_cell) %>%
+  mutate(mouse = case_when(mouse == "mouse1" ~ "Mouse 1",
+                           mouse == "mouse2" ~ "Mouse 2")) %>%
+  mutate(source = case_when(source == "fat" ~ "gon. fat",
+                            T ~ source)) %>%
+  mutate(assembled_vsgs = case_when(is.na(assembled_vsgs) == T ~ 0,
+                                    T ~ assembled_vsgs)) %>%
+  rename(number_of_VSGs_detected_by_de_novo_assembly = assembled_vsgs,
+         number_of_VSGs_by_genome_alignment = number_of_VSGs)
+write.xlsx(supplementary_table_1, "Per_cell_VSG_expression_summary.xlsx")
+
+supplementary_table_2 <- Eatro_vsg_expression_df %>%
+  ungroup() %>%
+  filter(mouse != "invitro") %>%
+  select(-experiment, -sort, -well) %>%
+  rename(gene_id = vsg,
+         percent_VSG_UMI_count = Percent, 
+         UMI_count = read_count) %>%
+  mutate(mouse = case_when(mouse == "mouse1" ~ "Mouse 1",
+                           mouse == "mouse2" ~ "Mouse 2")) %>%
+  mutate(source = case_when(source == "fat" ~ "gon. fat",
+                            T ~ source)) %>%
+  select(cell, source, mouse, gene_id, VSG_ID, percent_VSG_UMI_count, UMI_count, total_vsg_umi_count) %>%
+  left_join(summary_by_cell_excel)
+write.xlsx(supplementary_table_2, "Per_cell_VSG_alignment_summary.xlsx")
+
+supplementary_table_3 <- dominant_vsg_results %>%
+  filter(mouse != "invitro") %>%
+  filter(str_detect(cellid_2, "Lung_R1") != T,
+         str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
+  ungroup() %>%
+  select(-cellid, -samplename, -well, -cell, -sort, -experiment, -plate, -vsg) %>%
+  rename(dominant_vsg = main_vsg, 
+         cell = cellid_2,
+         number_of_vsgs_assembled_in_cell = number_of_vsgs_in_sample,
+         Percent_of_reads = Percent) %>%
+  select(cell, source, mouse, VSG, Percent_of_reads, RPKM, total_rpkm, hit_VSG, pct_id_vs_query, pct_id_vs_match, match_VSG_length, assembled_VSG_length, cluster, number_of_vsgs_assembled_in_cell, dominant_vsg) %>%
+  mutate(mouse = case_when(mouse == "mouse1" ~ "Mouse 1",
+                           mouse == "mouse2" ~ "Mouse 2")) %>%
+  mutate(source = case_when(source == "fat" ~ "gon. fat",
+                            T ~ source)) %>%
+  mutate(dominant_vsg = case_when(Percent_of_reads < 80 ~ NA,
+                                  T ~ dominant_vsg)) %>%
+  group_by(cell) %>%
+  fill(dominant_vsg, .direction = "downup") %>%
+  mutate(dominant_vsg = case_when(is.na(dominant_vsg)==T ~ "NA",
+                                  T ~ dominant_vsg))
+write.xlsx(supplementary_table_3, "Per_cell_VSG_assembly_summary.xlsx")
+  
+```
+
+```{r}
+# Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5e. 
+
+eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
+   filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  ggplot(aes(x = source, fill = cell_description)) + 
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  facet_wrap("mouse", scales = "free_x") +
+  theme_pubr(legend = "right", base_size = 20, x.text.angle = 45) +
+  xlab("") +
+  ylab("Percentage of cells") +
+  scale_fill_manual(values = color_palette_6)
+
+eatro_and_assembled_counts_bar
+
+ggsave("figures/eatro_and_assembled_counts_80p_10umi.pdf", eatro_and_assembled_counts_bar,
+       device = "pdf", width = 12, height = 6, units = "in")
+
+```
+
+```{r}
+# L15_mouse2_heart could be mid-switch? 
+
+eatro_and_assembled_counts %>% 
+  ungroup() %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  ungroup() %>%
+  select(cell, source, mouse) %>%
+  distinct() %>%
+  dplyr::count(name = "number_of_cells_analyzed")
+
+
+# Number of cells that have multiple VSGs by alignment but only one VSG by de novo assembly
+eatro_and_assembled_counts %>%
+  filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  ungroup() %>% 
+  group_by(source, mouse) %>% 
+  add_count(name = "total_cells") %>%
+  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
+  ungroup() %>%
+  select(cell, cell_description) %>%
+  distinct() %>%
+  group_by(cell_description) %>%
+  summarize(group_count = n()) 
+  
+```
+
+```{r}
+
+# 385 cells with >1 VSG by alignment but 1 de novo assembled VSG
+
+# only 15% have a VSG well represented in the genome (58 cells)
+
+# 95.8 % 
+
+problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
+  rename(query_id = VSG)
+
+library(metablastr)
+
+trin_cluster_names <- results %>%
+  ungroup() %>%
+  select(VSG, cluster) %>%
+  distinct() %>%
+  rename(query_id = VSG)
+
+blast_test <- blast_nucleotide_to_nucleotide(
+                 query   = system.file('seqs/qry_nn.fa', package = 'metablastr'),
+                 subject = system.file('seqs/sbj_nn.fa', package = 'metablastr'),
+                 output.path = tempdir(),
+                 db.import  = FALSE)
+
+# blast of all the assembled vsg orfs in cells that had multiple VSG hits by alignment but only one vsg by assembly. I blasted against all the annotated regions of the EATRO1125 genome Raul sent. 
+
+eatro_blast <- blast_nucleotide_to_nucleotide(
+  query = "assembled_orf_blast_vs_ref/problem_cluster_orfs.fa",
+  subject = "assembled_orf_blast_vs_ref/genome_blastdb/TriTrypDB-67_TbruceiEATRO1125_Genome_annotated_seqs.fasta",
+  output.path = "assembled_orf_blast_vs_ref/",
+  db.import  = FALSE,
+  evalue = 1*10^-15
+) 
+
+eatro_blast <- eatro_blast %>% 
+  mutate(q_len_cov = (q_end - q_start+1)) %>%
+  mutate(q_perc_cov = (q_len_cov/q_len)*100) %>%
+  distinct()
+
+
+eatro_blast_filt <- eatro_blast %>%
+  group_by(query_id) %>%
+  filter(q_len_cov == max(q_len_cov)) %>%
+  filter(bit_score == max(bit_score)) %>%
+  left_join(trin_cluster_names) %>%
+  distinct() %>%
+  mutate(perf_hit_vsg = case_when(q_perc_cov > 98.0 & perc_identity > 98.0 ~ "y",
+                             TRUE ~ "n"))
+
+eatro_blast_perf_hit <- eatro_blast_filt %>%
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  mutate(description = "cell with a perfect hit in ref") %>%
+  select(-cluster) # 58 cells with a near perfect hit in the genome (>98% q_perc_cov + >98% perc_identity )
+
+problem_cells <- left_join(problem_cells, eatro_blast_perf_hit)
+
+#find out how many cells of the ones that are well represented in the genome that have very close other similar hits
+
+close_hits <-  eatro_blast_filt %>%
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  left_join(eatro_blast)  %>%
+  group_by(query_id) %>%
+  slice_max(q_len_cov, n = 10) %>%
+  slice_max(perc_identity, n = 5) %>%
+  ungroup() %>%
+  filter(q_perc_cov > 80) %>%
+  filter(perc_identity > 80) %>%
+  select(query_id, subject_id, perc_identity, q_perc_cov, cluster) %>%
+  distinct() 
+
+# the number of cells that have well represented VSG in the genome and dont have other similar VSGs
+# 18 cells which is 4.7% of the 385 with >1 VSG by alignment but 1 de novo assembled VSG that have a well represented VSG in the genome and no other similar VSGs
+cells_with_well_represented_and_no_other_hits <- close_hits %>%
+  ungroup() %>%
+  group_by(query_id) %>%
+  summarize(count = n()) %>%
+  mutate(count = case_when(query_id == "TRINITY_DN0_c0_g1_i1_1_53_1246_L21_Lung_R2_cell_CACTAACG+AGAGACTC" ~ 2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_2_1177_RC_B23_Lung_R2_cell_TAGCGCTT+GTAGAAGG" ~ 2, 
+                           query_id == "TRINITY_DN1_c0_g1_i4_1_0_1183_RC_K17_Lung_R2_cell_CTCATGTC+ACGAGTCT" ~2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_76_997_A10_Lung_R2_cell_CGATTGGT+GTGTAACC" ~ 2,
+                           query_id == "TRINITY_DN8_c0_g1_i4_1_427_1537_RC_B19_Lung_R2_cell_TCGAACGA+GTAGAAGG" ~ 2,
+                           query_id == "TRINITY_DN1_c0_g1_i2_1_0_1228_RC_A21_Lung_R2_cell_CACTAACG+GTGTAACC" ~ 2,
+                           TRUE ~ count))%>%
+  filter(count == 1) 
+```
+
+
+```{r}
+TriTrypDB_67_TbruceiEATRO1125_with_VSGIDs <- read_delim("TriTrypDB-67_TbruceiEATRO1125_with_VSGIDs.gff", 
+    delim = "\t", escape_double = FALSE, 
+    col_names = FALSE, comment = "#", trim_ws = TRUE)
+```
+
+
+## Visualize VSG read covereage in one cell
+```{r}
+## Visualizing VSG coverage 
+
+library(ggcoverage)
+
+mark.region=data.frame(start=1100,
+                       end=1509,
+                       label="")
+
+cluster59.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/cluster_59_bw"
+
+
+cluster59.track.df <- ggcoverage::LoadTrackFile(track.folder = cluster59.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
+
+cluster59.coverage = ggcoverage(data = cluster59.track.df, 
+                            plot.type = "facet", 
+                            range.position = "out",
+                            rect.color = "black",
+                            color = "lightgrey", single.nuc = F,
+                            mark.region= mark.region) +
+  ggtitle("Cluster 59") +
+  theme_pubr(legend = "none") +
+  xlab("VSG base pair position") +
+  ylab("Read coverage") +
+  xlim(0,1525)
+
+cluster59.coverage
+
+ggsave("figures/cluster59.coverage.pdf", cluster59.coverage,
+       device = "pdf", width = 8, height = 4, units = "in")
+
+
+#BiocManager::install("RNAseqData.HNRNPC.bam.chr14")
+```
+
+```{r}
+# A10_Lung_R1 - cluster 59   Tb1125.VSG.20730 = Tbb1125VSG-60   Tb1125.VSG.25180 = Tbb1125VSG-72
+# 
+```
+
+```{r}
+vsg60.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/vsg-60_bw"
+
+
+vsg60.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg60.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
+
+vsg60.coverage = ggcoverage(data = vsg60.track.df, 
+                            plot.type = "facet", 
+                            range.position = "out",
+                            rect.color = "black",
+                            color = "lightgrey", single.nuc = F,
+                            mark.region= mark.region) +
+  ggtitle("vsg-60") +
+  theme_pubr(legend = "none")+
+  xlab("VSG base pair position") +
+  ylab("Read coverage score") +
+  xlim(0, 1525)
+
+vsg60.coverage
+
+ggsave("figures/vsg60.coverage.pdf", vsg60.coverage,
+       device = "pdf", width = 8, height = 4, units = "in")
+
+```
+```{r}
+
+vsg72.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/vsg-72_bw"
+
+
+vsg72.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg72.track.folder, format = "bw",region = "chr1:1-2000", extend = 2000)
+
+vsg72.coverage = ggcoverage(data = vsg72.track.df, 
+                            plot.type = "facet", 
+                            range.position = "out",
+                            rect.color = "black",
+                            color = "lightgrey", single.nuc = F,
+                            mark.region= mark.region) +
+  ggtitle("vsg-72") +
+  theme_pubr(legend = "none") + 
+  xlab("VSG base pair position") +
+  ylab("Read coverage score") +
+  xlim(NA, 1525)
+
+vsg72.coverage
+
+ggsave("figures/vsg72.coverage.pdf", vsg72.coverage,
+       device = "pdf", width = 8, height = 4, units = "in")
+```
+
+```{r}
+sessionInfo()
+```
+

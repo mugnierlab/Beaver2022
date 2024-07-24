@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+G23_Mix_random_R1_cell_AAGTCCTC+CCAATGGA.fq	G23	1	cell	Mix	TRINITY_DN0_c0_g1_i1_1_237_1671_G23_Mix_random_R1_cell_AAGTCCTC+CCAATGGA	81.372963851	617768.431361	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	100.0	100.0	1434	1434
+G23_Mix_random_R1_cell_AAGTCCTC+CCAATGGA.fq	G23	1	cell	Mix	TRINITY_DN27_c0_g1_i5_1_59_968_G23_Mix_random_R1_cell_AAGTCCTC+CCAATGGA	18.627036149	141412.999577	gnl|BL_ORD_ID|2088 Tb427VSG-3303 : GB Accession KC611910 : 1236nt : Internal partial : contig3329.	6.60066006601	4.85436893204	1236	909

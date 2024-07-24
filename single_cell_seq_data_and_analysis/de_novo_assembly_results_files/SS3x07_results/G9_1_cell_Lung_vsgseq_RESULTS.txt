@@ -1,0 +1,2 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+G9_Lung_Antat_R1_cell_CCTGTCTT+TGCTGCTA.fq	G9	1	cell	Lung	TRINITY_DN0_c0_g1_i1_1_79_1612_RC_G9_Lung_Antat_R1_cell_CCTGTCTT+TGCTGCTA	100.0	660501.915456	gnl|BL_ORD_ID|2799 Tbb1125VSG-240 : Complete but atypical GPI site : 1509nt : contig PacBio-107	96.0861056751	97.6143141153	1509	1533

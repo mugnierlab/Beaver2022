@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_fat_single_cell_O5_plate1_exp2_TCGTGGTA+AACGCACA.fq	mouse1	fat	singleCell	O5	plate1	exp2	TRINITY_DN0_c0_g1_i4_1_1_1364_RC_mouse1_fat_single_cell_O5_plate1_exp2_TCGTGGTA+AACGCACA	100.0	744047.544643	gnl|BL_ORD_ID|4096 Tbb1125VSG-2564 : N-terminus partial : 1512nt : contig PacBio-102	92.0029347029	82.9365079365	1512	1363

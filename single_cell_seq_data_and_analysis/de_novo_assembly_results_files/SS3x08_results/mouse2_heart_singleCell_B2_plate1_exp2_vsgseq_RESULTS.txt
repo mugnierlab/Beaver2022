@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse2_heart_single_cell_B2_plate1_exp2_TTCTTCCG+TTCGTGCT.fq	mouse2	heart	singleCell	B2	plate1	exp2	TRINITY_DN0_c0_g1_i4_1_58_1411_mouse2_heart_single_cell_B2_plate1_exp2_TTCTTCCG+TTCGTGCT	100.0	749625.112444	gnl|BL_ORD_ID|2607 Tbb1125VSG-34 : Complete : 1575nt : MC : contig Illumina-822	100.0	85.9047619048	1575	1353

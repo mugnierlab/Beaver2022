@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse2_heart_single_cell_E12_plate1_exp2_CGGTATGA+TATAGCGG.fq	mouse2	heart	singleCell	E12	plate1	exp2	TRINITY_DN0_c0_g1_i1_1_80_1481_RC_mouse2_heart_single_cell_E12_plate1_exp2_CGGTATGA+TATAGCGG	100.0	723588.929088	gnl|BL_ORD_ID|6 Tb427VSG-8 : GB Accession AY935574 : 1401nt : Complete : contig90003.	99.9286224126	99.9286224126	1401	1401

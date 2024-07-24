@@ -1,0 +1,3 @@
+file	well	R	type	source	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+J4_Lung_R2_cell_TGACCAAG+ACTGAGAG.fq	J4	2	cell	Lung	TRINITY_DN0_c0_g1_i5_1_173_1616_RC_J4_Lung_R2_cell_TGACCAAG+ACTGAGAG	79.7405189621	3908045.58621	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	94.8024948025	95.3974895397	1434	1443
+J4_Lung_R2_cell_TGACCAAG+ACTGAGAG.fq	J4	2	cell	Lung	TRINITY_DN0_c0_g1_i1_1_173_1478_RC_J4_Lung_R2_cell_TGACCAAG+ACTGAGAG	20.2594810379	992907.702128	gnl|BL_ORD_ID|2630 Tbb1125VSG-60 : Complete : 1434nt : MC : contig Illumina-12	90.1149425287	82.0083682008	1434	1305

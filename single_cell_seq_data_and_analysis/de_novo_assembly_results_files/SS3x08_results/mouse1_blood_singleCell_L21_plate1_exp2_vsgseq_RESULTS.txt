@@ -1,0 +1,2 @@
+file	mouse	source	cell	well	plate	experiment	VSG	Percent	RPKM	hit_VSG	pct_id_vs_query	pct_id_vs_match	match_VSG_length	assembled_VSG_length
+mouse1_blood_single_cell_L21_plate1_exp2_CACTAACG+GCATCGAT.fq	mouse1	blood	singleCell	L21	plate1	exp2	TRINITY_DN3_c0_g1_i1_1_150_1449_RC_mouse1_blood_single_cell_L21_plate1_exp2_CACTAACG+GCATCGAT	100.0	781249.921875	gnl|BL_ORD_ID|1743 Tb427VSG-2285 : GB Accession KC611559 : 843nt : C-terminus partial extended : contig2857.	53.9645881447	83.1553973903	843	1299
