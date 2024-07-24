@@ -185,6 +185,7 @@ results %>%
   distinct() %>%
   dplyr::count()
   
+# For results in the paper we don't want to include any cells that were specifically sorted on AnTat because this could bias our VSG data. I am filtering out the two Lung AnTat plates and the any cell that was sorted for AnTat staining. (Lung_R1 and Lung_Antat_R1). 
 
 mouse1_assem_vsgs_histo <- results %>%
   filter(sort == "tdTom") %>%
@@ -235,14 +236,9 @@ cells_per_source <- results %>%
   group_by( source, mouse) %>%
   summarise( cells = n()) %>%
   left_join(vsgs_per_source)
-
-vsgs_vs_cells <- cells_per_source %>%
-  ggplot(aes(x = number_of_vsgs, y = cells)) +
-  geom_point(aes(color = source)) + 
-  theme_pubr()
-vsgs_vs_cells
 ```
 ```{r}
+# Number of cells with an assembled VSG in each tissue sample
 summary_cells_assembled <- results %>% 
   filter(mouse != "invitro") %>%
   filter(sort == "tdTom") %>%
@@ -269,8 +265,8 @@ assembled_vsgs_counts <- results %>%
 
 
 ```{r}
+# We want to call VSGs that represent 80% or more of the relative reads (RPKM) as the main VSG of that cell. The other VSGs would then be background. So essentially if a VSG is more than 80% then that is the expressed VSG in that cell. For cells without a single dominant VSG will be considered to be expressing the number of VSGs that are assembled in the cell. 
 
-# We want to call VSGs that represent 80% or more of the relative reads as the main VSG of that cell. The other VSGs would then be background. So essentially if a VSG is more than 80% then that is the expressed VSG for that cell. 
 dominant_vsg_results <- results %>% 
   filter(Percent > 80) %>% 
   mutate(main_vsg = cluster) %>%
@@ -294,9 +290,12 @@ vsgs_vs_cells <- corrected_vsgs_vs_cells %>%
   theme_pubr()
 vsgs_vs_cells
 
+# The total number of VSGs detected in a plate (representing 370 cells from one tissue ) is not correlated directly with the number cells that have an assembled VSG.
+
 ```
 
 ```{r}
+
 dominant_vsgs_per_source <- dominant_vsg_results %>% 
   select(cellid, cellid_2, source, mouse, main_vsg, sort) %>%
   distinct() %>%
@@ -306,7 +305,7 @@ dominant_vsgs_per_source <- dominant_vsg_results %>%
   filter(str_detect(cellid_2, "Lung_R1") != T,
          str_detect(cellid_2, "Lung_Antat_R1") != T)
 
-# the number of DOMINANT vsgs per cell, 98.6% have only one dominant VSG
+# The number of DOMINANT VSGs per cell, 98.6% have only one dominant VSG (STAT FOR THE PAPER)
 dominant_vsgs_per_source %>%
   filter(mouse != "invitro") %>%
   ungroup() %>%
@@ -317,6 +316,8 @@ dominant_vsgs_per_source %>%
 ```
 
 ```{r}  
+
+# These are not in the paper but potentially helpful for visualizing the number of dominantly expressed VSGs per cell in each tissue sample.
 mouse1_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
   filter(mouse == "mouse1") %>%
   ggplot(aes(x =  dominant_number_of_vsgs_in_sample)) +
@@ -361,96 +362,7 @@ invitro_dominant_vsgs_per_source_plot
 ```
 
 ```{r}
-# number of cells in mouse1 blood is 246
-# I found 48 VSGs in mouse 1 blood by raw sc seq 
-# I found 37 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# bulk: 54 raw vsgs assembled
-# bulk: 28 vsgs corrected for number of cells
-bulk_blood_mouse1 <- read_tsv("bulk_vsgseq/mouse1_blood_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 246 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_blood_mouse1_count <- bulk_blood_mouse1 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-# number of cells in mouse1 blood is 237
-# I found 62 VSGs in mouse 1 blood by raw sc seq 
-# I found 57 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# Bulk: 59 raw vsgs assembled
-# Bulk: 24 vsgs corrected for number of cells
-bulk_fat_mouse1 <- read_tsv("bulk_vsgseq/mouse1_fat_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 237 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_fat_mouse1_count <- bulk_fat_mouse1 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-
-# number of cells in mouse1 blood is 208
-# I found 18 VSGs in mouse 1 blood by raw sc seq 
-# I found 16 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# Bulk: 33 vsgs assembled
-# bulk: 8 vsgs when corrected for number of cells
-bulk_heart_mouse1 <- read_tsv("bulk_vsgseq/mouse1_heart_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 208 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_heart_mouse1_count <- bulk_heart_mouse1 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-
-# number of cells in mouse1 blood is 530
-# I found 56 VSGs in mouse 1 blood by raw sc seq 
-# I found 33 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-bulk_lung_mouse1 <- read_tsv("bulk_vsgseq/mouse1_lung_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 530 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_lung_mouse1_count <- bulk_lung_mouse1 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-# number of cells in mouse1 blood is 163
-# I found 39 VSGs in mouse 1 blood by raw sc seq 
-# I found 32 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# bulk: 31 vsgs assembled
-# bulk: 10 vsgs corrected by cells
-bulk_blood_mouse2 <- read_tsv("bulk_vsgseq/mouse2_blood_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 163 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_blood_mouse2_count <- bulk_blood_mouse2 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-# number of cells in mouse1 blood is 140
-# I found 39 VSGs in mouse 1 blood by raw sc seq 
-# I found 32 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# bulk: 32 vsgs assembled
-# bulk: 12 vsgs corrected by cells
-bulk_fat_mouse2 <- read_tsv("bulk_vsgseq/mouse2_fat_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 140 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_fat_mouse2_count <- bulk_fat_mouse2 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-# number of cells in mouse1 blood is 199
-# I found 50 VSGs in mouse 1 blood by raw sc seq 
-# I found 44 VSGs in mouse 1 blood corrected for only taking the dominant VSG. 
-# bulk: 59 vsgs assembled
-# bulk: 29 vsgs corrected by cells
-bulk_heart_mouse2 <- read_tsv("bulk_vsgseq/mouse2_heart_bulk_RESULTS.txt") %>%
-  mutate(total_number_cells = 140 ) %>%
-  mutate(parasites = (Percent/100)*total_number_cells) 
-bulk_heart_mouse2_count <- bulk_heart_mouse2 %>%
-  filter(parasites > 1) %>%
-  dplyr::count()
-
-#mouse 2 lung bulk VSG-seq didn't work. The error was pretty cryptic. Will have to look more closely later. But i dont think this is super key at the moment. 
-
-```
-
-```{r}
-
+# Need to get the list of EATRO gene IDs that represent a VSG
 # The corresponding VSG ID for each EATRO1125 gene ID (and location)
 VSG_location_EATRO1125v67 <- read_delim("VSG_location_EATRO1125v67.tsv", 
     delim = "\t", escape_double = FALSE, 
@@ -464,7 +376,6 @@ VSG_geneids <- VSG_location_EATRO1125v67 %>%
 
 
 ```{r}
-
 # Count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the second round of sequencing)
 SS3x_008_EATRO_count_table_Alex_good_single_cells <- read_delim("SS3x_008_Alex_General_stats/SS3x_008_EATRO_count_table_Alex_good_single_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
