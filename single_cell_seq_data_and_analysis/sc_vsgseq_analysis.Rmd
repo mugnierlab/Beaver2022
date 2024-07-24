@@ -55,7 +55,7 @@ ss3x08_results <- ss3x08_sc_results_renamed
 
 ```{r}
 # load in the results from SS3x07 - This is from the first sequencing run in the single cell sequencing experiment
-ss3x07_sc_results <- vsg_read("ss3x_07_results/results_files/all_results.txt") %>%
+ss3x07_sc_results <- vsg_read("de_novo_assembly_results_files/SS3x07_results/all_results_exp1.txt") %>%
   select(-well, -R) %>%
   filter(type != "Water") %>%
   rename(cell = type) %>%
@@ -86,7 +86,7 @@ ss3x07_sc_results <- vsg_read("ss3x_07_results/results_files/all_results.txt") %
 #Rename cluster to match between experiments
 ss3x07_sc_results_renamed <- vsg_rename(
   ss3x07_sc_results, 
-  "all_vsg_orfs/cluster_reference_table.txt") 
+  "de_novo_assembly_VSG_orfs/cluster_reference_table.txt") 
 
 ss3x07_results <- ss3x07_sc_results_renamed
 ```
@@ -95,7 +95,7 @@ ss3x07_results <- ss3x07_sc_results_renamed
 all_raw_results <- rbind(ss3x07_sc_results, ss3x08_sc_results)
 
 all_raw_results_renamed <- vsg_rename(all_raw_results, 
-  "all_vsg_orfs/cluster_reference_table.txt") 
+  "de_novo_assembly_VSG_orfs/cluster_reference_table.txt") 
 
 results <- all_raw_results_renamed
 
@@ -148,7 +148,7 @@ results <- results %>%
 
 ```{r}
 #I got raw total read counts from each cell by using -wc in the terminal. These are not succesfully aligning reads, but just total raw reads per cell. 
-read_counts <- read_table("read_counts.txt", 
+read_counts <- read_table("de_novo_assembly_results_files/read_counts.txt", 
     col_names = FALSE) %>%
   rename(lines = X1,
          file = X2) %>%
@@ -172,7 +172,6 @@ result_vs_reads <- results_and_reads %>%
   theme_pubr()
 result_vs_reads
 ```
-
 
 ```{r}
 # The total number of cells with a de novo assembled VSG 
@@ -218,21 +217,6 @@ mouse2_assem_vsgs_histo
 
 ggsave("figures/mouse2_assem_vsgs_histo.pdf", mouse2_assem_vsgs_histo,
        device = "pdf", width = 8, height = 6, units = "in")
-```
-
-```{r}
-in_vitro <- results %>% 
-  filter(source == "mix") %>% 
-  mutate(vsg_of_interest = case_when(cluster == "Cluster 9" ~ "AnTat",
-                                     cluster == "Cluster 25" ~ "VSG-60",
-                                     cluster == "Cluster 21" ~ "AnTat variant",
-                                     TRUE ~ "other VSG")) %>%
-  mutate(vsg_of_interest = factor(vsg_of_interest, levels = c("AnTat", "VSG-60", "AnTat variant","other VSG"))) %>%
-  ggplot(aes(x = vsg_of_interest, y = Percent)) +
-  geom_point(position = position_jitter(width = 0.4, height = 0.6)) +
-  theme_pubr() 
-
-in_vitro
 ```
 
 
