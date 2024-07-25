@@ -376,8 +376,8 @@ VSG_geneids <- VSG_location_EATRO1125v67 %>%
 
 
 ```{r}
-# Count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the second round of sequencing)
-SS3x_008_EATRO_count_table_Alex_good_single_cells <- read_delim("SS3x_008_Alex_General_stats/SS3x_008_EATRO_count_table_Alex_good_single_cells.tsv", 
+# Second sequencing run (experiment 2) count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the second round of sequencing)
+SS3x_008_EATRO_count_table_Alex_good_single_cells <- read_delim("gene_expression_matrices/SS3x_008_EATRO_gene_count_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   rename(gene_id = ...1) %>%
@@ -389,7 +389,7 @@ SS3x_008_EATRO_count_table_Alex_good_single_cells_df <- SS3x_008_EATRO_count_tab
   pivot_longer(cols = A2_mouse1_blood:last_col(), names_to = "cell" ,values_to = "read_count") 
 
 # The relative VSG UMI counts for each VSG in a cell. This is only for cells that passed the "good" cell thresholds with at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts
-SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex <- read_delim("VSG_expression_matixes/SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex.tsv", 
+SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex <- read_delim("VSG_expression_matrices/SS3x_008_EATRO_VSG_relative_expression_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   rename(gene_id = ...1)
@@ -417,8 +417,8 @@ SS3x_008_EATRO_VSG_counts <- SS3x_008_EATRO_VSG_relative_expression_df %>%
 ```
 
 ```{r}
-# Count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the first round of sequencing which included mouse 1 lung and the in vitro cells)
-SS3x_007_EATRO_count_table_Alex_good_single_cells <- read_delim("SS3x_007_Alex_General_stats/SS3x_007_EATRO_count_table_Alex_good_single_cells.tsv", 
+# First sequencing run (experiment 1) count table of all genes in only cells that had at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts (this is for the first round of sequencing which included mouse 1 lung and the in vitro cells)
+SS3x_007_EATRO_count_table_Alex_good_single_cells <- read_delim("gene_expression_matrices/SS3x_007_EATRO_gene_count_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   rename(gene_id = ...1) %>%
@@ -430,7 +430,7 @@ SS3x_007_EATRO_count_table_Alex_good_single_cells_df <- SS3x_007_EATRO_count_tab
   pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "read_count") 
  
 # The relative VSG UMI counts for each VSG in a cell. This is only for cells that passed the "good" cell thresholds with at least 500 genes detected, 1000 gene UMI counts, and 30 spike-in UMI counts
-SS3x_007_EATRO_VSG_expression_good_cells <- read_delim("VSG_expression_matixes/SS3x_007_EATRO_VSG_relative_expression_table_only_good_cells_Alex.tsv", 
+SS3x_007_EATRO_VSG_expression_good_cells <- read_delim("VSG_expression_matrices/SS3x_007_EATRO_VSG_relative_expression_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
   rename(gene_id = ...1) 
@@ -455,7 +455,7 @@ SS3x_007_EATRO_VSG_expression_df <- SS3x_007_EATRO_VSG_expression_good_cells %>%
   rename(vsg = gene_id) %>%
   left_join(VSG_geneids)
   
-# eatro VSG expression with no antat sorted cells and only the one lung plate. (the other lung plates were sorted on antat and we did not want to include them because they could introduce bias) 
+# eatro VSG expression with no antat sorted cells and one lung plate. (the other lung plates were sorted on antat and we did not want to include them because they could introduce bias in VSG expression) 
 
 Eatro_vsg_expression_df <- rbind(SS3x_007_EATRO_VSG_expression_df, SS3x_008_EATRO_VSG_relative_expression_df) %>%
   filter(sort == "tdTom") %>%
@@ -488,6 +488,7 @@ SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy<- SS3x_007_EATRO_count
   mutate(source = case_when(source == "Lung" ~ "lung",
                             source == "Mix" ~ "mix"))
 
+# Same filter for only the sequencing plates that we want to use for the analysis
 SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy <- SS3x_007_EATRO_count_table_Alex_good_single_cells_df_tidy %>%
   filter(mouse != "invitro",
          sort == "tdTom") %>% 
@@ -531,41 +532,51 @@ avg_read_count_per_cell <- read_count_per_cell %>%
 ```
 
 ```{r}
-#Finding how many cells are "good" and have VSG reads. 
+#Finding how many cells are pass the sequencing filters and have >1 VSG UMI count. 
+
 
 eatro_cells_with_vsg <- Eatro_vsg_expression_df %>%
   filter(mouse != "invitro") %>%
   filter(read_count > 1) %>%
   select(cell) %>%
-  distinct()
+  distinct() 
+# 1327 cells
 
+# Figuring out why some cells pass filters but have less than 1 VSG UMI count (or at least no single VSG that represents more than 1 UMI count)
+
+# Find the cells that pass filtering cutoffs
 total_good_cells <- read_count_per_cell %>%
   ungroup() %>%
   select(cell) %>%
   distinct()
 
+# which cells pass filter cutoffs but do not have >1 VSG UMI counts
 cell_with_no_vsg <- anti_join(total_good_cells, eatro_cells_with_vsg)
 
 # 1 cell (M11_mouse1_blood) is a "good" cell but does not have any VSG UMI counts, also no VSG assembled in that cell. This cell has fairly low read coverage with only 1800 total reads and many genes being represented by only one UMI count. 
 
 # 33 cells have VSGs that are represented by only 1 VSG UMI count by alignment and will be filtered out by requiring 1 VSG UMI per VSG. 
 
-# 120 cells have a total VSG UMI count under 10. Many cells with low VSG UMIs have several VSGs that are represented by a single UMI read.
+
+```
+
+```{r}
+# How many cells passing sequencing filters have a total of less than 10 VSG UMI count?
+
 total_vsg_umi_count_per_cell <- Eatro_vsg_expression_df %>%
   ungroup() %>%
   select(cell, source, mouse, read_count) %>%
   group_by(cell) %>%
   summarise(total_vsg_umi_count = sum(read_count))
+# 120 cells have a total VSG UMI count under 10. Many cells with low VSG UMIs have several VSGs that are represented by a single UMI read. These could represent poor read coverage or breadth in these cells or potentially dying cells. This could also be biologically real and some parasites are not expressing a VSG or have very low VSG expression? 
 ```
 
 
+## Running the analysis two ways; with and without a 10 total VSG UMI filter. 
 
+I am going to essentially duplicate the analysis so that we a have figures and numbers for running this whole analysis using no VSG UMI cutoff for cells and requiring 10 total VSG UMIs for each cell.
 
-## Running the analysis two ways; with and without a 10 total VSG UMI filter
-
-I am going to essentially duplicate the analysis so that we a have figures and numbers for running this whole analysis using no VSG UMI cutoff for cells and requiring 10 total VSG UMIs for each cell. 
-
-
+For the paper we decided to only include cells that have greater than 10 total VSG UMI counts. This is a cutoff that Nicolai's group uses to weed out noisy cells that are very difficult to call VSG expression in. This filter does not change the results very much but does cut down on some fairly obvious noise that results in some cells. Most cells with less than 10 total VSG UMIs typically have multiple VSGs with alignment with very little read coverage. A majority of these cells could have a low VSG UMI count because the VSG being expressed is not in the current EATRO reference genome resulting in a few reads aligning to other VSGs by chance due to shared homology or due to expression noise. 
 
 ### No VSG UMI filter 
 
@@ -585,6 +596,8 @@ summary_cell_numbers <- Eatro_vsg_expression_df %>%
 
 
 ```{r}
+# Since we do not use these figures in the paper I am going to comment out the lines saving the figs. 
+
 #Histograms (only filter is requiring more than 1 UMI reads to map to a VSG)
 
 eatro_histo_dat <- Eatro_vsg_expression_df %>%
@@ -592,7 +605,7 @@ eatro_histo_dat <- Eatro_vsg_expression_df %>%
   group_by(cell, mouse, source) %>%
   dplyr::count( name = "number_of_VSGs")
 
-# Mouse 1 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+# Mouse 1 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
 mouse1_eatro_histo <- eatro_histo_dat %>%
   filter(mouse == "mouse1") %>%
   ggplot(aes(x = number_of_VSGs)) +
@@ -605,10 +618,10 @@ mouse1_eatro_histo <- eatro_histo_dat %>%
   scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14))
 mouse1_eatro_histo
 
-ggsave("figures/mouse1_eatro_histo.pdf", mouse1_eatro_histo,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/mouse1_eatro_histo.pdf", mouse1_eatro_histo,
+#       device = "pdf", width = 8, height = 6, units = "in")
 
-# Mouse 2 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+# Mouse 2 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
 mouse2_eatro_histo <- eatro_histo_dat %>%
   filter(mouse == "mouse2") %>%
   ggplot(aes(x = number_of_VSGs)) +
@@ -621,8 +634,8 @@ mouse2_eatro_histo <- eatro_histo_dat %>%
   scale_x_continuous(breaks=c(0,2,4,6,8,10))
 mouse2_eatro_histo
 
-ggsave("figures/mouse2_eatro_histo.pdf", mouse2_eatro_histo,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/mouse2_eatro_histo.pdf", mouse2_eatro_histo,
+#       device = "pdf", width = 8, height = 6, units = "in")
 ```
 
 
@@ -651,13 +664,13 @@ eatro_violin_plot <- eatro_violin_dat %>%
   ylab("Proportion of UMI counts aligning to the most abundant VSG per cell")
 eatro_violin_plot
 
-ggsave("figures/eatro_violin_plot.pdf", eatro_violin_plot,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/eatro_violin_plot.pdf", eatro_violin_plot,
+#       device = "pdf", width = 8, height = 6, units = "in")
 ```
 
 ```{r}
 
-# Still requiring VSGs to be represented by at least 2 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts. When there is a dominant VSG that VSG is considered to be monogenically expressed in a cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Segal's group has used and based on our violin plot seems to work well in our case as well. 
+# Still requiring VSGs to be represented by > 1 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts. When there is a dominant VSG that VSG is considered to be monogenically expressed in a cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Segal's group has used and based on our violin plot seems to work well in our case as well. 
 
 eatro_dominant_vsgs_df <- Eatro_vsg_expression_df %>%
   filter(read_count > 1) %>%
@@ -693,8 +706,8 @@ eatro_vsg_percent_multiple <- eatro_dom_vsg_counts %>%
   
 eatro_vsg_percent_multiple
 
-ggsave("figures/eatro_vsg_percent_multiple.pdf", eatro_vsg_percent_multiple,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/eatro_vsg_percent_multiple.pdf", eatro_vsg_percent_multiple,
+#       device = "pdf", width = 8, height = 6, units = "in")
 
 ```
 ```{r}
@@ -732,20 +745,6 @@ eatro_dominant_vsgs_df %>%
   scale_y_continuous(labels = c("0","10", "100", "1000"))
 ```
 
-```{r}
-
-# showing the correlation to total VSG UMI count and the number of VSGs detected by alignment. There is a slight correlation with more reads lending to detecting more VSGs. Each dot represents a single cell
-eatro_reads_per_cell <- eatro_dominant_vsgs_df %>%
-  select(cell, read_count) %>%
-  group_by(cell) %>%
-  summarise(total_reads = sum(read_count)) %>%
-  left_join(eatro_histo_dat) %>%
-  ggplot(aes(x = number_of_VSGs, y = total_reads)) +
-  ylab("Total VSG UMI count") +
-  geom_point(alpha = .2, position = position_jitter(.2))
-eatro_reads_per_cell
-```
-
 
 ```{r}
 
@@ -774,7 +773,6 @@ eatro_dom_vsg_counts %>%
 # combining eatro mapping and assembled VSG counts for each cell. This is with a filter calling a single VSG expressed in a cell if that VSG represents 80% or more of the VSG reads. 
 
 #Some of the mapped VSGs for a cell represent a very small number of reads. which probably explains why a VSG did not assembled in some of the cells that are "good".  
-
 
 eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
   rename(cell = cellid_2,
@@ -843,7 +841,7 @@ problem_clusters[problem_clusters == TRUE] # 428 total clusters
 problem_cluster_orfs <- sc_seq_all_orfs[c(which(names(sc_seq_all_orfs) %in% cells_with_multialign_1_assemble_vsgs$VSG))]
 
 #writing these clusters into a FASTA
-write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = "assembled_orf_blast_vs_ref//problem_cluster_orfs.fa")
+#write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = #"assembled_orf_blast_vs_ref//problem_cluster_orfs.fa")
  
 ```
 
@@ -985,7 +983,7 @@ eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
   pivot_wider(names_from = cell_description, values_from = n) %>%
   mutate_all(funs(ifelse(is.na(.), 0, .)))
 
-write_csv(eatro_and_assembled_counts_summary, "eatro_and_assembled_counts_summary.csv")
+#write_csv(eatro_and_assembled_counts_summary, "eatro_and_assembled_counts_summary.csv")
 ```
 
 ```{r}
@@ -1009,24 +1007,12 @@ eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
 
 eatro_and_assembled_counts_bar
 
-ggsave("figures/eatro_and_assembled_counts_80p.pdf", eatro_and_assembled_counts_bar,
-       device = "pdf", width = 12, height = 6, units = "in")
+#ggsave("figures/eatro_and_assembled_counts_80p.pdf", eatro_and_assembled_counts_bar,
+#       device = "pdf", width = 12, height = 6, units = "in")
 
 ```
 
 ```{r}
-# L15_mouse2_heart could be mid-switch? 
-
-eatro_and_assembled_counts %>% 
-  ungroup() %>%
-  filter(sort == "tdTom",
-        mouse != "invitro") %>%
-  ungroup() %>%
-  select(cell, source, mouse) %>%
-  distinct() %>%
-  dplyr::count(name = "number_of_cells_analyzed")
-
-
 # Number of cells that have multiple VSGs by alignment but only one VSG by de novo assembly
 eatro_and_assembled_counts %>%
   filter(sort == "tdTom",
@@ -1135,24 +1121,27 @@ cells_with_well_represented_and_no_other_hits <- close_hits %>%
                            query_id == "TRINITY_DN1_c0_g1_i2_1_0_1228_RC_A21_Lung_R2_cell_CACTAACG+GTGTAACC" ~ 2,
                            TRUE ~ count))%>%
   filter(count == 1) 
-#These cells had cluster 59 (or cluster 25 which is VSG-60) which is a mix of VSG-60 and VSG-72 but the VSG assembled in these cells was a little shorter than the full length so i had to manually correct
+#These cells had cluster 59 (or cluster 25 which is VSG-60) which is a mix of VSG-60 and VSG-72 but the VSG assembled in these cells was a little shorter than the full length so i had to manually correct the counts to reflect that these did not have single well represented VSG orfs within the EATRO reference genome.
+
+
+# More notes on cells with abnormal VSG expression profiles. 
 
 # mouse1_fat_single_cell_D22 is a cell with a partially assembled VSG (1125VSG-39). While other members of the cluster do not have multiple VSGs by read alignment this cell appears to only assemble to fron 1000bp/1490bp orf (total length of VSG 39) Thus could represent a mosaic that isnt fully assembled. The other VSG reads align to is VSG 25
 
-# mouse1_blood_single_cell_L11 is a a cell with a partially assembled VSG (1125VSG-430). While other members of the cluster do not have multiple VSGs (in this case only one other cell) by read alignment this cell appears to only assemble to fron 776bp/1300bp orf (total length of VSG 430) Thus could represent a mosaic that isnt fully assembled. The other VSG reads align to is VSG 1293 and a few others.
+# mouse1_blood_single_cell_L11 is a a cell with a partially assembled VSG (1125VSG-430). While other members of the cluster do not have multiple VSGs (in this case only one other cell) by read alignment this cell appears to only assemble to front 776bp/1300bp orf (total length of VSG 430) Thus could represent a mosaic that isnt fully assembled. The other VSG reads align to is VSG 1293 and a few others.
 
-# what if these cells represent a cell with an active break or very recent break in the VSG orf and can only produce reads transcripts from part of the orf? or maybe a mosiac is the easiter answer.
+# what if these cells represent a cell with an active break or very recent break in the VSG orf and can only produce reads transcripts from part of the orf? or maybe a mosaic is the easier answer.
 
 # mouse1_fat_single_cell_I9 assembled VSG-421 perfectly and it matches the version in the genome. But by read alignment it hits VSG-421 and Tbb1125VSG-4257 
 
 
-# 1125VSG-1293 appears in many cells in relatively low quantities and could represent noise. 
-
-#TRINITY_DN9_c0_g1_i1_1_1_878_RC_mouse1_fat_singl
+# 1125VSG-1293 appears in many cells in relatively low quantities and could represent expression noise. 
 ```
 
 
 ### Requiring 10 VSG UMI count for cells
+
+*** THIS ANALYSIS WAS USED TO CREATE EXTENDED DAT FIGURE 5, EXTENDED DATA TABLE 2, AND THE SUPPLEMENTAL INFO TABLES ***
 
 ```{r}
 
@@ -1162,7 +1151,7 @@ total_vsg_umi_count_per_cell
 # Join total VSG UMI counts with the EATRO VSG expression dataset 
 Eatro_vsg_expression_df <- left_join(Eatro_vsg_expression_df, total_vsg_umi_count_per_cell)
 
-# Filter out all cells with less than 10 total VSG UMIs 
+# Filter out all cells with less than 10 total VSG UMIs.
 Eatro_vsg_expression_df <- Eatro_vsg_expression_df %>%
   filter(total_vsg_umi_count > 10)
 
@@ -1181,14 +1170,14 @@ summary_cell_numbers <- Eatro_vsg_expression_df %>%
 
 
 ```{r}
-#Histograms (only filter is requiring more than 1 UMI reads to map to a VSG)
+#Histograms (only filter is requiring >1 UMI count to map to a VSG)
 
 eatro_histo_dat <- Eatro_vsg_expression_df %>%
   filter(read_count > 1) %>%
   group_by(cell, mouse, source) %>%
   dplyr::count( name = "number_of_VSGs")
 
-# Mouse 1 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+# Mouse 1 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
 mouse1_eatro_histo <- eatro_histo_dat %>%
   filter(mouse == "mouse1") %>%
   ggplot(aes(x = number_of_VSGs)) +
@@ -1204,7 +1193,7 @@ mouse1_eatro_histo
 ggsave("figures/mouse1_eatro_histo_10umi.pdf", mouse1_eatro_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 
-# Mouse 2 historgram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
+# Mouse 2 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
 mouse2_eatro_histo <- eatro_histo_dat %>%
   filter(mouse == "mouse2") %>%
   ggplot(aes(x = number_of_VSGs)) +
@@ -1224,7 +1213,7 @@ ggsave("figures/mouse2_eatro_histo_10umi.pdf", mouse2_eatro_histo,
 
 ```{r}
 
-# Violin plot showing the proportion of UMI reads that map to the most abundant VSG per cell. This is helpful for visualizing noise/ potential derepression and showing the 80% mapping cutoff as signifying monogenic expression
+# Violin plot showing the proportion of UMI counts that map to the most abundant VSG per cell. This is helpful for visualizing noise/ potential derepression and showing the 80% mapping cutoff as likely signifying monogenic expression
 
 eatro_violin_dat <- Eatro_vsg_expression_df %>%
   filter(read_count > 1) %>%
@@ -1253,7 +1242,7 @@ ggsave("figures/eatro_violin_plot_10umi.pdf", eatro_violin_plot,
 
 ```{r}
 
-# Still requiring VSGs to be represented by at least 2 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts. When there is a dominant VSG that VSG is considered to be monogenically expressed in a cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Segal's group has used and based on our violin plot seems to work well in our case as well. 
+# Still requiring VSGs to be represented by >1 UMI counts, we called a VSG "dominant" if it represented 80% or more of the VSG UMI counts in a cell. When there is a dominant VSG that VSG is considered to be monogenically expressed in that cell and other VSGs are not considered expressed. The 80% threshold is something Nicolai Siegel's group has used and based on our violin plot seems to work well in our case as well. 
 
 eatro_dominant_vsgs_df <- Eatro_vsg_expression_df %>%
   filter(read_count > 1) %>%
