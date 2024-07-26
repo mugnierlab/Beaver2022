@@ -123,7 +123,7 @@ results <- results %>%
 
 
 ```{r}
-# These clusters which all have a top hit of Tb427 VSG-3303 do not hit an actual VSG. They map to internal chromosome sections and ribosomal subunits. Which is often a contaminant that looks like a vsg. For further analysis, I will filter these errors out.  
+# These clusters which all have a top hit of Tb427 VSG-3303 do not hit an actual VSG. They map to internal chromosome sections and ribosomal subunits which i determined by blasting the assembled ORF. These types of sequences are often a contaminant that looks like a VSG. For further analysis, I will filter these VSG assembly errors out. In Monica's paper and our current VGS-Seq pipeline these are often filtered out but for some reason this specific sequence got through the filters that are in the VSG-Seq pipeline. 
 
 results <- results %>%
   filter(str_detect(hit_VSG, "Tb427VSG-3303") == F) %>%
@@ -141,7 +141,7 @@ number_of_wells <- results %>%
   mutate(total_wells = 370) %>%
   mutate(percent_success = (wells_with_results/total_wells)*100)
 
-#adding a tally for the number of VSGs assembled in each cell without any filtering
+#Adding a tally for the number of VSGs assembled in each cell without any filtering
 results <- results %>%
   group_by(cellid) %>%
   add_tally(name = "number_of_vsgs_in_sample") 
