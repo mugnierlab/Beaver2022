@@ -1,0 +1,9 @@
+mouse,source,"1 VSG by alignment, 1 VSG detected de novo",">1 VSGs by alignment, 1 VSG detected de novo","1 VSG by alignment, no VSG detected de novo","1 VSG by alignment, > 1 detected de novo",">1 VSGs by alignment, >1 VSG detected de novo",">1 VSGs by alignment, no VSG detected de novo"
+mouse1,blood,93,91,16,4,1,33
+mouse1,fat,148,50,13,4,0,12
+mouse1,heart,125,36,1,0,0,0
+mouse1,lung,26,88,2,1,0,6
+mouse2,blood,50,35,5,1,0,1
+mouse2,fat,106,16,22,1,1,5
+mouse2,heart,99,46,3,1,2,5
+mouse2,lung,42,23,0,0,0,2

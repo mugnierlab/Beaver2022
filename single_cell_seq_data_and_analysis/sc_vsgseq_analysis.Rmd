@@ -15,6 +15,9 @@ library(ggsci)
 library("gridExtra")
 library(VennDiagram)
 library(scales)
+library(metablastr)
+library(seqinr)
+library(openxlsx)
 
 color_palette_12 <- c("#BA584A","#3D7F9F","#4D947B","#FAD370","#8BD9D1","#F59E75","#B0889E",
                       "#F28A2E","#AB7846","#A2BDA5","#F09EB0","#D9D9D9")
@@ -1278,8 +1281,8 @@ eatro_vsg_percent_multiple <- eatro_dom_vsg_counts %>%
   
 eatro_vsg_percent_multiple
 
-ggsave("figures/eatro_vsg_percent_multiple_10umi.pdf", eatro_vsg_percent_multiple,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/eatro_vsg_percent_multiple_10umi.pdf", eatro_vsg_percent_multiple,
+#       device = "pdf", width = 8, height = 6, units = "in")
 
 ```
 ```{r}
@@ -1298,7 +1301,7 @@ eatro_monogenic_cells <- eatro_dom_vsg_counts %>%
   dplyr::count(name = "cells") %>%
   mutate(percent = (cells/ total_cells)*100)
 
-# 62.79% monogenic 37.2% multi-VSG expressors
+# 62.79% monogenic VSG expression, 37.2% multi-VSG expressors
 ```
 
 
@@ -1358,9 +1361,6 @@ eatro_dom_vsg_counts %>%
 ```{r}
 # combining eatro mapping and assembled VSG counts for each cell. This is with a filter calling a single VSG expressed in a cell if that VSG represents 80% or more of the VSG reads. 
 
-#Some of the mapped VSGs for a cell represent a very small number of reads. which probably explains why a VSG did not assembled in some of the cells that are "good".  
-
-
 eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
   rename(cell = cellid_2,
          assembled_vsgs = dominant_number_of_vsgs_in_sample) %>%
@@ -1370,18 +1370,20 @@ eatro_and_assembled_counts <- dominant_vsgs_per_source %>%
          str_detect(cell, "Lung_Antat_R1") != T) 
 
 
-# Visualizing the correlation between the number of VSGs by de novo assembly and the number of VSGs by alignement per cell
+# Visualizing the correlation between the number of VSGs by de novo assembly and the number of VSGs by alignement per cell. This is with the filter of calling a VSG monogenically expressed if it represent 80% of the relative reads in a cell. 
 eatro_and_assembled_counts_cor <- eatro_and_assembled_counts %>%
   ggplot(aes(x = number_of_VSGs, y = assembled_vsgs)) + 
   geom_point(position = position_jitter()) +
-  theme_pubr()
+  theme_pubr() +
+  xlab("Number of VSGs by alignment") +
+  ylab("Number of VSGs detected by assembly")
 eatro_and_assembled_counts_cor
 
 ```
 
 
 ```{r}
-# Creating a description for each cell depending on how many VSGs were assembled and how many were detected by alignment. This is using the threshold of calling a VSG monogenically expressed if it represents 80% or more of the VSG UMI counts or reads in the case of de novo assembly. 
+# Creating a description for each cell depending on how many VSGs were assembled and how many were detected by alignment. This is using the threshold of calling a VSG monogenically expressed if it represents 80% or more of the VSG UMI counts or relative reads (RPKM) the case of de novo assembly. 
 
 eatro_and_assembled_counts <- eatro_and_assembled_counts %>%
   mutate(cell_description = case_when(number_of_VSGs == 1 & assembled_vsgs == 1 ~ "1 VSG by alignment, 1 VSG detected de novo",
@@ -1391,12 +1393,17 @@ eatro_and_assembled_counts <- eatro_and_assembled_counts %>%
                                       number_of_VSGs > 1 & assembled_vsgs == 1 ~ ">1 VSGs by alignment, 1 VSG detected de novo",
                                       number_of_VSGs > 1 & is.na(assembled_vsgs) ~ ">1 VSGs by alignment, no VSG detected de novo")) %>%
   mutate(cell_description = factor(cell_description, levels = c("1 VSG by alignment, 1 VSG detected de novo", ">1 VSGs by alignment, 1 VSG detected de novo", "1 VSG by alignment, no VSG detected de novo", "1 VSG by alignment, > 1 detected de novo", ">1 VSGs by alignment, >1 VSG detected de novo", ">1 VSGs by alignment, no VSG detected de novo")))
+```
 
 
+```{r}
 # Why do we have lots of cells with 1 VSG detected by de novo assembly but many VSGs by alignment to the EATRO genome? Maybe the assembled VSG ORFs are not in the EATRO genome?
 
+# One likely reason for why the cells have only one de novo assembled VSG but have read alignment to several VSGs in the genome is becuase the VSG expressed in the cell is a mosaic or not represented in the EATRO1125 annotated genome (some of the expression site VSGs are not in the reference genome for example). 
 
-# the number of cells with multialignment to VSGs but only one VSG by de novo, 385 of 453 total cells 
+#I am going to take the VSGs in these cells and blast them against the reference genome to see if they are represented. 
+
+# The number of cells with multialignment to VSGs but only one VSG by de novo, 385 of 453 total cells that have multiple VSGs with read by read alignment to the genome. 
 multialign_but_1_de_novo <- eatro_and_assembled_counts %>%
   ungroup() %>%
   filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo" |
@@ -1410,7 +1417,7 @@ multialign_but_1_de_novo <- eatro_and_assembled_counts %>%
   dplyr::count()
 
 
-# To figure this out I am going select these cells, find the VSG ORFS that were assembled in them, and compare them to the EATRO genome. 
+# To figure out why cells have 1 VSG by de novo assembly but multiple VSGs by alignment I am going select these cells, find the VSG ORFS that were assembled in them, and blast them against the sequences in the EATRO genome. 
 cells_with_multialign_1_assemble <- eatro_and_assembled_counts %>%
   ungroup() %>%
   filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
@@ -1420,37 +1427,134 @@ cells_with_multialign_1_assemble <- eatro_and_assembled_counts %>%
   distinct() %>%
   left_join(results) 
 
-cells_with_multialign_1_assemble %>%
-  ungroup() %>%
-  select(cellid_2) %>%
-  distinct() %>%
-  dplyr::count()
-
 # We only want the "dominant" assembled VSG per cell 
 cells_with_multialign_1_assemble_vsgs <- cells_with_multialign_1_assemble %>%
   filter(Percent > 80) %>%
   select(VSG) %>%
   distinct()
   
-# Load in all of the VSG orfs assembled 
-sc_seq_all_orfs <- read.fasta(file = "all_vsg_orfs/all_vsg_orfs_bothexps.fa")
+# Loading in all of the VSG ORFs that were assembled in every cell  
+sc_seq_all_orfs <- read.fasta(file = "de_novo_assembly_VSG_orfs/all_vsg_orfs_bothexps.fa")
 
 
-# finding the names of all these clusters that have this problem
+# finding the names of all these clusters that have this problem. ("problem clusters" isnt a great name for them but thats what I had when I was trying to figure this out and its now in a lot of my code.)
 problem_clusters <- names(sc_seq_all_orfs)  %in% cells_with_multialign_1_assemble_vsgs$VSG
 problem_clusters[problem_clusters == TRUE] # 428 total clusters
 
 problem_cluster_orfs <- sc_seq_all_orfs[c(which(names(sc_seq_all_orfs) %in% cells_with_multialign_1_assemble_vsgs$VSG))]
 
 #writing these clusters into a FASTA
-write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = "assembled_orf_blast_vs_ref//problem_cluster_orfs.fa")
+write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out = "assembled_orf_blast_vs_ref/problem_cluster_orfs.fa")
  
 ```
 
 ```{r}
 
-#44 clusters that this represents
+# 385 cells with >1 VSG by alignment but 1 de novo assembled VSG
 
+# These are the stats that I find below
+# only 15% have a VSG well represented in the genome (58 cells)
+
+# 95.8 % of these cells can be explained by common read mapping errors or by the assembled orf not being represented in the reference genome. 
+
+problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
+  rename(query_id = VSG)
+
+trin_cluster_names <- results %>%
+  ungroup() %>%
+  select(VSG, cluster) %>%
+  distinct() %>%
+  rename(query_id = VSG)
+
+# To see if the VSGs that assembled in these cells are represented in the genome I am going to blast the assembled VSG ORFs against the EATRO genome.
+# Blast of all the assembled vsg orfs in cells that had multiple VSG hits by alignment but only one vsg by assembly. I blasted against all the annotated regions of the EATRO1125 genome.  
+
+eatro_blast <- blast_nucleotide_to_nucleotide(
+  query = "assembled_orf_blast_vs_ref/problem_cluster_orfs.fa",
+  subject = "assembled_orf_blast_vs_ref/genome_blastdb/TriTrypDB-67_TbruceiEATRO1125_Genome_annotated_seqs.fasta",
+  output.path = "assembled_orf_blast_vs_ref/",
+  db.import  = FALSE,
+  evalue = 1*10^-15
+) 
+
+# Calculating the query coverage of the blast hits
+eatro_blast <- eatro_blast %>% 
+  mutate(q_len_cov = (q_end - q_start+1)) %>%
+  mutate(q_perc_cov = (q_len_cov/q_len)*100) %>%
+  distinct()
+
+# Defining if a VSG is well represented in the genome if it covers 98% of the sequence and has 98% identity. 
+eatro_blast_filt <- eatro_blast %>%
+  group_by(query_id) %>%
+  filter(q_len_cov == max(q_len_cov)) %>%
+  filter(bit_score == max(bit_score)) %>%
+  left_join(trin_cluster_names) %>%
+  distinct() %>%
+  mutate(perf_hit_vsg = case_when(q_perc_cov > 98.0 & perc_identity > 98.0 ~ "y",
+                             TRUE ~ "n"))
+# If a VSG ORF is well represented (covers 98% of the query and 98% identity) then I mark that cell as having a good hit (perf_hit)
+eatro_blast_perf_hit <- eatro_blast_filt %>% 
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  mutate(description = "cell with a perfect hit in ref") %>%
+  select(-cluster) # 58 cells with a near perfect hit in the genome (>98% q_perc_cov + >98% perc_identity )
+
+# This means most of the 385 cells that we are looking at do not express a VSG that is well represented in the reference EATRO1125 genome.
+
+problem_cells <- left_join(problem_cells, eatro_blast_perf_hit)
+
+# If these express VSGs that are well represented then why do we have multiple VSGs with read alignment? 
+
+# These VSGs might share large stretches of homology with other VSGs which could cause read alignment noise. 
+
+#Finding out how many cells that express a well represented VSG in the genome that have very similar other similar blast hits. These similar other sequences could create read alignment confusion.
+
+close_hits <-  eatro_blast_filt %>%
+  ungroup() %>%
+  filter(perf_hit_vsg == "y") %>%
+  select(query_id, cluster) %>%
+  distinct() %>%
+  left_join(eatro_blast)  %>%
+  group_by(query_id) %>%
+  slice_max(q_len_cov, n = 10) %>%
+  slice_max(perc_identity, n = 5) %>%
+  ungroup() %>%
+  filter(q_perc_cov > 80) %>%
+  filter(perc_identity > 80) %>%
+  select(query_id, subject_id, perc_identity, q_perc_cov, cluster) %>%
+  distinct() 
+
+# the number of cells that have well represented VSG in the genome and dont have other similar VSGs is 18 cells which is 4.7% of the 385 with >1 VSG by alignment but 1 de novo assembled VSG that have a well represented VSG in the genome and no other similar VSGs. 
+
+cells_with_well_represented_and_no_other_hits <- close_hits %>%
+  ungroup() %>%
+  group_by(query_id) %>%
+  summarize(count = n()) %>%
+  mutate(count = case_when(query_id == "TRINITY_DN0_c0_g1_i1_1_53_1246_L21_Lung_R2_cell_CACTAACG+AGAGACTC" ~ 2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_2_1177_RC_B23_Lung_R2_cell_TAGCGCTT+GTAGAAGG" ~ 2, 
+                           query_id == "TRINITY_DN1_c0_g1_i4_1_0_1183_RC_K17_Lung_R2_cell_CTCATGTC+ACGAGTCT" ~2,
+                           query_id == "TRINITY_DN2_c0_g1_i1_1_76_997_A10_Lung_R2_cell_CGATTGGT+GTGTAACC" ~ 2,
+                           query_id == "TRINITY_DN8_c0_g1_i4_1_427_1537_RC_B19_Lung_R2_cell_TCGAACGA+GTAGAAGG" ~ 2,
+                           query_id == "TRINITY_DN1_c0_g1_i2_1_0_1228_RC_A21_Lung_R2_cell_CACTAACG+GTGTAACC" ~ 2,
+                           TRUE ~ count))%>%
+  filter(count == 1) # the count here represents how many sequences are similar to the expressed orf that was assembled. So a count of 1 means that only one sequence in the genome is a good match. 
+
+#The cells that i had to manually correct to be 2 expressed cluster 59 (or cluster 25 which is VSG-60) which is a mix of VSG-60 and VSG-72 but the VSG assembled in these cells was a little shorter than the full length so i had to manually correct the counts to reflect that these did not have single well represented VSG orfs within the EATRO reference genome. 
+
+
+# Of the 385 cells that had multi VSG expression by alignment but one VSG by de novo assembly, 95% can be explained by mosaicism in the expressed VSG, the absence of the expressed VSG from the reference genome, or by the existence of several highly similar VSGs that causes read alignment errors. 
+
+# 18 cells express a VSG by de novo assembly that should be easily mappable with genome alignemt but for some reason have more than one VSG with read alignment. One potential explanation is that the assembled orf does not represent the full length VSG. But this is such a small number of the total cells that this could also be related to inherent sequencing noise. Additionally, there was no bias for these cells to be specifically in tissue spaces over being in the blood. 
+
+```
+
+```{r}
+
+# For the paper and our own analysis we wanted to calcualte the number/percent of cells that fit into several different categories of VSG expression. Below I go through calculating all the numbers that are presented in the paper and creating the data for extended data table 2.
+
+# Findign the numebr of cells in the blood and tissues that have VSG alignment but no de nove assembled VSG 
 number_unclear_vsgs <- eatro_and_assembled_counts %>%
   ungroup() %>%
   filter(sort == "tdTom",
@@ -1469,11 +1573,10 @@ number_unclear_vsgs <- eatro_and_assembled_counts %>%
                            TRUE ~ "tissue")) %>%
   group_by(space) %>%
   summarize(mean_unclear = mean(percent_unclear_vsgs))
-
 # With >1 UMI required for calling a VSG detected. and >10 VSG UMI counts
 # 7.47 % on average unclear VSG expression in the blood 
 # 3.9 % on average unclear VSG expression in tissues
-  
+
 
 # Calculating the percent of cells that are likely expressing two or more VSGs per sample.
 number_multi_vsgs <- eatro_and_assembled_counts %>%
@@ -1500,7 +1603,7 @@ multi_vsgs_summarized <- number_multi_vsgs %>%
 # 1.50% of cells are likely expressing two or more VSGs
 
 
-# calculating the number of cells that are likely monogenically expressing a VSG
+# Calculating the number of cells that are likely monogenically expressing a VSG
 number_monogenic <- eatro_and_assembled_counts %>%
   ungroup() %>%
   filter(sort == "tdTom",
@@ -1526,7 +1629,7 @@ number_monogenic_summarized <- number_monogenic %>%
 # 93.4% of total cells are likely monogenically expressing a VSG
 
 
-# Calculating the percentage of cells in the blood and tissues that are likely multi VSG expressors.
+# Calculating the percentage of cells in the blood and tissues that are likely expressing multiple VSGs
 number_multiple_vsgs <- eatro_and_assembled_counts %>%
   filter(sort == "tdTom",
         mouse != "invitro") %>%
@@ -1567,14 +1670,37 @@ number_no_assembly <- eatro_and_assembled_counts %>%
             total_cells = 1216) %>% # had to manually put in the total cells 
   mutate(percent = (sum/total_cells)*100) 
 
-# 4.8% had at > 1 VSG by alignment but no vsgs detected by de novo assembly.
+# 4.8% of the total had at > 1 VSG by alignment but no vsgs detected by de novo assembly.
 ```  
   
+```{r}
+# Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5e. 
+
+eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
+   filter(sort == "tdTom",
+        mouse != "invitro") %>%
+  select(-main_vsg) %>%
+  distinct() %>%
+  ungroup() %>%
+  group_by(mouse, source) %>%
+  ggplot(aes(x = source, fill = cell_description)) + 
+  geom_bar(position = "fill") +
+  scale_y_continuous(labels = scales::percent) +
+  facet_wrap("mouse", scales = "free_x") +
+  theme_pubr(legend = "right", base_size = 20, x.text.angle = 45) +
+  xlab("") +
+  ylab("Percentage of cells") +
+  scale_fill_manual(values = color_palette_6)
+
+eatro_and_assembled_counts_bar
+
+ggsave("figures/eatro_and_assembled_counts_10umi.pdf", eatro_and_assembled_counts_bar,
+       device = "pdf", width = 12, height = 6, units = "in")
+
+```
 
 ```{r}
-library(openxlsx)
-
-# Creating summary table for Sup table 2. 
+# Creating summary table for extended data table 2. 
 eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
    filter(sort == "tdTom",
         mouse != "invitro") %>%
@@ -1587,8 +1713,9 @@ eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
   pivot_wider(names_from = cell_description, values_from = n) %>%
   mutate_all(funs(ifelse(is.na(.), 0, .)))
 
-write_csv(eatro_and_assembled_counts_summary, "eatro_and_assembled_counts_summary_10umi.csv")
+write_csv(eatro_and_assembled_counts_summary, "tables/eatro_and_assembled_counts_summary_10umi.csv")
 
+# Creating supplementary info tables that are too large to present in the paper.
 
 # Making a table summarizing de novo and alignment VSG counts per cell including UMI counts
 supplementary_table_1 <- eatro_and_assembled_counts %>%
@@ -1606,7 +1733,7 @@ supplementary_table_1 <- eatro_and_assembled_counts %>%
                                     T ~ assembled_vsgs)) %>%
   rename(number_of_VSGs_detected_by_de_novo_assembly = assembled_vsgs,
          number_of_VSGs_by_genome_alignment = number_of_VSGs)
-write.xlsx(supplementary_table_1, "Per_cell_VSG_expression_summary.xlsx")
+write.xlsx(supplementary_table_1, "tables/supplementary_table_1.xlsx")
 
 supplementary_table_2 <- Eatro_vsg_expression_df %>%
   ungroup() %>%
@@ -1620,8 +1747,8 @@ supplementary_table_2 <- Eatro_vsg_expression_df %>%
   mutate(source = case_when(source == "fat" ~ "gon. fat",
                             T ~ source)) %>%
   select(cell, source, mouse, gene_id, VSG_ID, percent_VSG_UMI_count, UMI_count, total_vsg_umi_count) %>%
-  left_join(summary_by_cell_excel)
-write.xlsx(supplementary_table_2, "Per_cell_VSG_alignment_summary.xlsx")
+  left_join(supplementary_table_1)
+write.xlsx(supplementary_table_2, "tables/supplementary_table_2.xlsx")
 
 supplementary_table_3 <- dominant_vsg_results %>%
   filter(mouse != "invitro") %>%
@@ -1644,169 +1771,22 @@ supplementary_table_3 <- dominant_vsg_results %>%
   fill(dominant_vsg, .direction = "downup") %>%
   mutate(dominant_vsg = case_when(is.na(dominant_vsg)==T ~ "NA",
                                   T ~ dominant_vsg))
-write.xlsx(supplementary_table_3, "Per_cell_VSG_assembly_summary.xlsx")
+write.xlsx(supplementary_table_3, "tables/supplementary_table_3.xlsx")
   
 ```
 
-```{r}
-# Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5e. 
 
-eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
-   filter(sort == "tdTom",
-        mouse != "invitro") %>%
-  select(-main_vsg) %>%
-  distinct() %>%
-  ungroup() %>%
-  group_by(mouse, source) %>%
-  ggplot(aes(x = source, fill = cell_description)) + 
-  geom_bar(position = "fill") +
-  scale_y_continuous(labels = scales::percent) +
-  facet_wrap("mouse", scales = "free_x") +
-  theme_pubr(legend = "right", base_size = 20, x.text.angle = 45) +
-  xlab("") +
-  ylab("Percentage of cells") +
-  scale_fill_manual(values = color_palette_6)
-
-eatro_and_assembled_counts_bar
-
-ggsave("figures/eatro_and_assembled_counts_80p_10umi.pdf", eatro_and_assembled_counts_bar,
-       device = "pdf", width = 12, height = 6, units = "in")
-
-```
+## Visualize VSG read covereage in one cell that likely expressed a mosaic
 
 ```{r}
-# L15_mouse2_heart could be mid-switch? 
+# We want to visualize raw read coverage in a cell that has a commonly expressed VSG that cause read alignment error because it is a mosaic of two different VSGs in the reference genome.
 
-eatro_and_assembled_counts %>% 
-  ungroup() %>%
-  filter(sort == "tdTom",
-        mouse != "invitro") %>%
-  ungroup() %>%
-  select(cell, source, mouse) %>%
-  distinct() %>%
-  dplyr::count(name = "number_of_cells_analyzed")
+# Visualizing VSG coverage 
 
-
-# Number of cells that have multiple VSGs by alignment but only one VSG by de novo assembly
-eatro_and_assembled_counts %>%
-  filter(sort == "tdTom",
-        mouse != "invitro") %>%
-  ungroup() %>% 
-  group_by(source, mouse) %>% 
-  add_count(name = "total_cells") %>%
-  filter(cell_description == ">1 VSGs by alignment, 1 VSG detected de novo") %>%
-  ungroup() %>%
-  select(cell, cell_description) %>%
-  distinct() %>%
-  group_by(cell_description) %>%
-  summarize(group_count = n()) 
-  
-```
-
-```{r}
-
-# 385 cells with >1 VSG by alignment but 1 de novo assembled VSG
-
-# only 15% have a VSG well represented in the genome (58 cells)
-
-# 95.8 % 
-
-problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
-  rename(query_id = VSG)
-
-library(metablastr)
-
-trin_cluster_names <- results %>%
-  ungroup() %>%
-  select(VSG, cluster) %>%
-  distinct() %>%
-  rename(query_id = VSG)
-
-blast_test <- blast_nucleotide_to_nucleotide(
-                 query   = system.file('seqs/qry_nn.fa', package = 'metablastr'),
-                 subject = system.file('seqs/sbj_nn.fa', package = 'metablastr'),
-                 output.path = tempdir(),
-                 db.import  = FALSE)
-
-# blast of all the assembled vsg orfs in cells that had multiple VSG hits by alignment but only one vsg by assembly. I blasted against all the annotated regions of the EATRO1125 genome Raul sent. 
-
-eatro_blast <- blast_nucleotide_to_nucleotide(
-  query = "assembled_orf_blast_vs_ref/problem_cluster_orfs.fa",
-  subject = "assembled_orf_blast_vs_ref/genome_blastdb/TriTrypDB-67_TbruceiEATRO1125_Genome_annotated_seqs.fasta",
-  output.path = "assembled_orf_blast_vs_ref/",
-  db.import  = FALSE,
-  evalue = 1*10^-15
-) 
-
-eatro_blast <- eatro_blast %>% 
-  mutate(q_len_cov = (q_end - q_start+1)) %>%
-  mutate(q_perc_cov = (q_len_cov/q_len)*100) %>%
-  distinct()
-
-
-eatro_blast_filt <- eatro_blast %>%
-  group_by(query_id) %>%
-  filter(q_len_cov == max(q_len_cov)) %>%
-  filter(bit_score == max(bit_score)) %>%
-  left_join(trin_cluster_names) %>%
-  distinct() %>%
-  mutate(perf_hit_vsg = case_when(q_perc_cov > 98.0 & perc_identity > 98.0 ~ "y",
-                             TRUE ~ "n"))
-
-eatro_blast_perf_hit <- eatro_blast_filt %>%
-  ungroup() %>%
-  filter(perf_hit_vsg == "y") %>%
-  select(query_id, cluster) %>%
-  distinct() %>%
-  mutate(description = "cell with a perfect hit in ref") %>%
-  select(-cluster) # 58 cells with a near perfect hit in the genome (>98% q_perc_cov + >98% perc_identity )
-
-problem_cells <- left_join(problem_cells, eatro_blast_perf_hit)
-
-#find out how many cells of the ones that are well represented in the genome that have very close other similar hits
-
-close_hits <-  eatro_blast_filt %>%
-  ungroup() %>%
-  filter(perf_hit_vsg == "y") %>%
-  select(query_id, cluster) %>%
-  distinct() %>%
-  left_join(eatro_blast)  %>%
-  group_by(query_id) %>%
-  slice_max(q_len_cov, n = 10) %>%
-  slice_max(perc_identity, n = 5) %>%
-  ungroup() %>%
-  filter(q_perc_cov > 80) %>%
-  filter(perc_identity > 80) %>%
-  select(query_id, subject_id, perc_identity, q_perc_cov, cluster) %>%
-  distinct() 
-
-# the number of cells that have well represented VSG in the genome and dont have other similar VSGs
-# 18 cells which is 4.7% of the 385 with >1 VSG by alignment but 1 de novo assembled VSG that have a well represented VSG in the genome and no other similar VSGs
-cells_with_well_represented_and_no_other_hits <- close_hits %>%
-  ungroup() %>%
-  group_by(query_id) %>%
-  summarize(count = n()) %>%
-  mutate(count = case_when(query_id == "TRINITY_DN0_c0_g1_i1_1_53_1246_L21_Lung_R2_cell_CACTAACG+AGAGACTC" ~ 2,
-                           query_id == "TRINITY_DN2_c0_g1_i1_1_2_1177_RC_B23_Lung_R2_cell_TAGCGCTT+GTAGAAGG" ~ 2, 
-                           query_id == "TRINITY_DN1_c0_g1_i4_1_0_1183_RC_K17_Lung_R2_cell_CTCATGTC+ACGAGTCT" ~2,
-                           query_id == "TRINITY_DN2_c0_g1_i1_1_76_997_A10_Lung_R2_cell_CGATTGGT+GTGTAACC" ~ 2,
-                           query_id == "TRINITY_DN8_c0_g1_i4_1_427_1537_RC_B19_Lung_R2_cell_TCGAACGA+GTAGAAGG" ~ 2,
-                           query_id == "TRINITY_DN1_c0_g1_i2_1_0_1228_RC_A21_Lung_R2_cell_CACTAACG+GTGTAACC" ~ 2,
-                           TRUE ~ count))%>%
-  filter(count == 1) 
-```
-
-
-```{r}
-TriTrypDB_67_TbruceiEATRO1125_with_VSGIDs <- read_delim("TriTrypDB-67_TbruceiEATRO1125_with_VSGIDs.gff", 
-    delim = "\t", escape_double = FALSE, 
-    col_names = FALSE, comment = "#", trim_ws = TRUE)
-```
-
-
-## Visualize VSG read covereage in one cell
-```{r}
-## Visualizing VSG coverage 
+# The cell A10_Lung_R1 
+# expresses cluster 59 (by de novo assembly)   
+# It is a mosaic of these VSGs Tb1125.VSG.20730 = Tbb1125VSG-60   Tb1125.VSG.25180 = Tbb1125VSG-72
+# NOTE: we do not know if this is a true mosaic or not just that the expressed orf is not in the genome and that it is a combination of these two other VSGs (VSG-60 and VSG-72). 
 
 library(ggcoverage)
 
@@ -1814,7 +1794,7 @@ mark.region=data.frame(start=1100,
                        end=1509,
                        label="")
 
-cluster59.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/cluster_59_bw"
+cluster59.track.folder = "read_coverage_data/cluster_59_bw"
 
 
 cluster59.track.df <- ggcoverage::LoadTrackFile(track.folder = cluster59.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
@@ -1836,17 +1816,10 @@ cluster59.coverage
 ggsave("figures/cluster59.coverage.pdf", cluster59.coverage,
        device = "pdf", width = 8, height = 4, units = "in")
 
-
-#BiocManager::install("RNAseqData.HNRNPC.bam.chr14")
 ```
 
 ```{r}
-# A10_Lung_R1 - cluster 59   Tb1125.VSG.20730 = Tbb1125VSG-60   Tb1125.VSG.25180 = Tbb1125VSG-72
-# 
-```
-
-```{r}
-vsg60.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/vsg-60_bw"
+vsg60.track.folder = "read_coverage_data//vsg-60_bw"
 
 
 vsg60.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg60.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
@@ -1871,7 +1844,7 @@ ggsave("figures/vsg60.coverage.pdf", vsg60.coverage,
 ```
 ```{r}
 
-vsg72.track.folder = "/Users/AlexBeaver/Desktop/SS3x_008_Alex_002_dataset/aliging_orfs/vsg-72_bw"
+vsg72.track.folder = "read_coverage_data//vsg-72_bw"
 
 
 vsg72.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg72.track.folder, format = "bw",region = "chr1:1-2000", extend = 2000)
