@@ -62,9 +62,9 @@ vsg_expand <- function(df, col1, col2, merge = TRUE) {
   col2 <- as.name(col2)
 
   samples <- df %>%
-    vsgseqtools::vsg_distinct_vectorize(df[col1])
+    vsg_distinct_vectorize(df[col1])
   clusters <- df %>%
-    vsgseqtools::vsg_distinct_vectorize(df[col2])
+    vsg_distinct_vectorize(df[col2])
 
   expanded <- tidyr::expand_grid(samples, clusters)
 
@@ -252,8 +252,9 @@ day10_mice <- c(5,6,7,8)
 day14_mice_IV_wt <- c("M2", "M34", "M35", 'M3')
 day14_mice <- c(9,10,11,12)
 IV_wt_set_numbers <- c(12,27,32,33,30,36,4,6,2,3,34,35)
+
 mouse_names <- tibble(mouse = list("M12","M27", "M32", "M33", "M30", "M36", "M4", "M6", "M2", "M34","M35", "M3"),
-                      mouse_final = 1:12)
+                      mouse_final = 1:12) #this is the final names for mice presented in the paper
 
 # color palettes 
 color_palette_12 <- c("#BA584A","#3D7F9F","#4D947B","#FAD370","#8BD9D1","#F59E75","#B0889E",
@@ -286,6 +287,7 @@ parasitemia <- read_csv("data/parasitemia.csv") %>%
 
 ```{r}
 # need my qpcr cleaner package (this is specific to the output of out qpcr machine)
+#library(devtools)
 #install_github("ABeav/qPCRr")
 library(qPCRr)
 
@@ -373,7 +375,8 @@ blood_predictions <- rbind(predictions_8, predictions_9) %>%
 
 all_predictions <- full_join(tissue_predictions, blood_predictions)
 ```
-#
+# Exteneded data fig 3a
+## Parasitemia plot
 ```{r}
 parasitemia_data = parasitemia %>% 
   mutate(mouse = as.character(mouse)) %>%
@@ -421,7 +424,8 @@ ggsave("figures/parasitemia.pdf",parasitemia_data_plot,
 
 
 
-## Supplementary figure 1b 
+# extended data fig 3b 
+## Tissue parasite load 
 ```{r}
 # Supplementary figure 1b 
 tissue_parasite_load_dat  <- all_predictions %>%
@@ -468,12 +472,13 @@ Supplementary_figure_1b <- tissue_parasite_load_dat %>%
 
 Supplementary_figure_1b
 
-#ggsave("Supplementary_figure_1b.pdf",Supplementary_figure_1b,
-#       device = "pdf", width = 6, height = 4, units = "in")
+ggsave("extended_data_fig_3b.pdf",Supplementary_figure_1b,
+       device = "pdf", width = 6, height = 4, units = "in")
 
-#write.csv(all_predictions, "parasitemia_predictions.csv")
+write.csv(all_predictions, "parasitemia_predictions.csv")
 ```
-
+# Extended data fig 3c
+## Total parasite load per tissue
 ```{r}
 total_parasite_load_graph <- tissue_parasite_load_dat %>%
   ggplot(aes(x= day, y= parasites_per_organ)) +
@@ -492,12 +497,13 @@ total_parasite_load_graph <- tissue_parasite_load_dat %>%
 
 total_parasite_load_graph
 
-ggsave("figures/figure_S1c.pdf",total_parasite_load_graph,
+ggsave("figures/extended_data_fig_3c.pdf",total_parasite_load_graph,
        device = "pdf", width = 6, height = 4, units = "in")
 ```
 
 
-## Supplementary figure 1c 
+# Extended data fig 3d
+## Plate standards correlation
 ```{r}
 
 plate_list <- tibble(plate = 1:6, exp = c("5", "6", "7", "8", "9", "11"))
@@ -519,7 +525,7 @@ all_standards_graph <- all_standards %>%
  
 all_standards_graph
 
-ggsave("figures/figure_S1d.pdf", all_standards_graph,
+ggsave("figures/extended_data_fig_3d.pdf", all_standards_graph,
       device = "pdf", width = 8, height = 6, units = "in")
 ```
 
@@ -530,6 +536,7 @@ parasite_load_qPCR <- read_csv("data/parasite_load_qpcr_data/parasite_load_qPCR.
 ```
 
 ```{r}
+# Starting to analyze the VSGSeq data
 # Tidying tissue names to be consistent and renaming VSGs to cluster names
 vsg_seq_results_tidy <- vsg_rename(vsg_seq_results, 
                                    "data/cluster_reference_table.txt") %>% 
@@ -626,9 +633,8 @@ results_all_combos <- vsg_expand(vsg_seq_results_tidy, "samplename", "cluster") 
 
 # Main figures
 
-## Figure 1
+# Figure 1a
 
-#### A 
 ```{r}
 top_11_VSGs <- results %>% 
   select(day, tissue, cluster, Percent) %>%
@@ -702,10 +708,11 @@ stacked_bar_plot <- stacked_bar_plot_dat %>%
   ylab("Percent of expression")
 stacked_bar_plot 
 
-#ggsave("figures/figure_1A.pdf", stacked_bar_plot,
-#       device = "pdf", width = 10, height = 6, units = "in")
+ggsave("figures/figure_1A.pdf", stacked_bar_plot,
+       device = "pdf", width = 10, height = 6, units = "in")
 ```
-### B 
+
+# Figure 1b
 
 ```{r}
 D10_mouse_VSG_counts <- results %>%
@@ -797,7 +804,7 @@ ggsave("figures/figure_1B.pdf", mouse_VSGs_count_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-### C
+# Figure 1c
 
 ```{r}
 counts_per_sample <- results %>%
@@ -824,7 +831,7 @@ counts_by_space_plot <- counts_per_sample %>%
   scale_fill_manual(values = color_palette_12) +
   scale_color_manual(values = color_palette_12) +
   add_pvalue(counts_by_space_t_test_dat, 
-             label = "p.adj.signif",
+             label = "p.adj",
              xmin = "xmin", 
              xmax = "xmax") +
   scale_y_continuous(limits = c(0,350))
@@ -834,7 +841,7 @@ ggsave("figures/figure_1C.pdf", counts_by_space_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-### D
+# Figure 1d
 
 ```{r}
 counts_by_sample_dunn_test<- counts_per_sample %>%
@@ -879,6 +886,8 @@ ggsave("figures/figure_1D.pdf", counts_by_sample_boxplot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
+# Extended data figure 4a
+
 ```{r}
 formula <- y ~ x
 
@@ -906,6 +915,8 @@ reads_vs_VSGS_plot <- reads_vs_VSGS %>%
 
 reads_vs_VSGS_plot 
 ```
+
+# Extended data figure 4b 
 ```{r}
 day6_mice_IV_wt <- c("M12", "M27", "M32", "M33")
 day10_mice_IV_wt <- c("M30", "M36", "M4", "M6")
@@ -928,13 +939,13 @@ vsgs_vs_parasites_plot <- vsgs_vs_parasites %>%
   theme_pubr()
 vsgs_vs_parasites_plot
 
-ggsave("figures/vsgs_vs_parasites.pdf",vsgs_vs_parasites_plot,
+ggsave("figures/extended_data_fig_4b.pdf",vsgs_vs_parasites_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-## Figure 2
+#Figure 2
 
-### B
+# Figure 2b 
 
 ```{r}
 vsg_percent_unique <- results %>%
@@ -981,7 +992,7 @@ vsg_percent_unique_graph <- vsg_percent_unique %>%
         legend.position = "right",
         legend.background = element_rect(fill = NULL, color = NULL)) +
  stat_pvalue_manual(vsg_percent_unique_t_test_dat, 
-             label = "p.adj.signif",
+             label = "p.adj",
              xmin = "xmin", 
              xmax = "xmax", 
              hide.ns = TRUE)
@@ -992,7 +1003,7 @@ ggsave("figures/figure_2B.pdf", vsg_percent_unique_graph,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-### C
+# Figure 2c
 
 ```{r}
 next_dominant_vsgs <- results %>%
@@ -1048,9 +1059,10 @@ early_cluster_vsg_expression_plot
 ggsave("figures/figure_2C.pdf", early_cluster_vsg_expression_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
-## Figrue 3 
 
-## A
+# Figure 3
+
+# Figure 3a
 
 ```{r}
 
@@ -1127,7 +1139,7 @@ ggsave("figures/figure_3A.pdf", starting_vsg_espression_3,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-### B
+# Figure 3b and extended data table 1
 
 ```{r}
 #Facs data
@@ -1179,7 +1191,7 @@ supplement_table_dat <- facs_results %>%
 tab_df(supplement_table_dat, alternate.rows = T, # this colors the rows 
        title = "Descriptive statistics", #always give #your tables #titles
        sort.column = 2,
-       file = "figures/supplement_table_1.doc")
+       file = "figures/extended_data_table_1.doc")
 
 quant_plot_dat <- facs_results %>%
   mutate(antat_pos_percent = antat_pos_percent + .001) %>%
@@ -1243,7 +1255,7 @@ quant_plot <- quant_plot_dat %>%
 quant_plot  
 
 
-ggsave("figures/Facs_starting_quant_plot.pdf", quant_plot,
+ggsave("figures/figure_3b.pdf", quant_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 
 quant_plot_dat %>%
@@ -1254,11 +1266,12 @@ quant_plot_dat %>%
 
 
 
-## Figure 5
+# Figure 5
 
 ```{r}
 # Loading AID-/- sequencing data
 # Data from the first flow cell, which was with some of the WT samples
+# Note the mouse names from AID -/- and WT get confusing. But I kept the strain throughout
 AID_raw_results_1 <- read_csv("data/AID data/Beaver_raw_vsg_seq_results_AID_1.csv") %>%
   vsg_rename("data/cluster_reference_table.txt") %>% 
   mutate(tissue = case_when(tissue == "Brain" ~ "brain",
@@ -1343,7 +1356,7 @@ wt_and_aid_results_all_combos <- rbind(AID_results_all_combos, wt_results_all_co
                             TRUE ~ tissue))
 ```
 
-### A
+# figure 5a
 
 ```{r}
 wt_and_aid_starting_vsgs <- wt_and_aid_results %>%
@@ -1385,11 +1398,11 @@ wt_and_aid_starting_vsg_espression_plot <-wt_and_aid_starting_vsg_espression %>%
   geom_hline(yintercept = -2, linetype = 2) 
 
 wt_and_aid_starting_vsg_espression_plot
-ggsave("figures/figure_4A.pdf", wt_and_aid_starting_vsg_espression_plot,
+ggsave("figures/figure_5A.pdf", wt_and_aid_starting_vsg_espression_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-### B
+# Figure 5b
 
 ```{r}
 wt_and_aid_vsg_counts <- wt_and_aid_results %>% 
@@ -1414,6 +1427,8 @@ wt_and_aid_counts_t_test <- wt_and_aid_vsg_counts %>%
   group_by(space, day_num_char) %>%
   pairwise_t_test(vsg_count ~ strain, p.adjust.method = "BH") 
 
+write_csv(wt_and_aid_vsg_counts, "source_data/5b_source.csv")
+
 wt_and_aid_vsg_count_plot <- wt_and_aid_vsg_counts %>%
   ggplot(aes(x = day_num_char, y = vsg_count, group = interaction(day, space))) + 
   geom_boxplot(aes(fill = space), alpha = .5, width =.75) +
@@ -1427,14 +1442,17 @@ wt_and_aid_vsg_count_plot <- wt_and_aid_vsg_counts %>%
   scale_y_continuous(limits = c(0,275), n.breaks = 7)
 wt_and_aid_vsg_count_plot
 
-ggsave("figures/figure_4B.pdf", wt_and_aid_vsg_count_plot,
+# I had to add the p values manually becuase the facet wrap messes up how R plots things. The P-values can be found in the data frame above
+
+ggsave("figures/figure_5B.pdf", wt_and_aid_vsg_count_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
 
-# Supplemental figures
 
-## S.5
+
+# Extended data figure 6a
+
 ```{r}
 # Loading Elisa data
 IgG_dat <- read_csv("data/elisa_data/BZEX44_09012020_IgG_lower_dilution_R.csv") %>%
@@ -1478,11 +1496,11 @@ elisa_plot <- elisa_dat %>%
   ylab("Concentration of antibody (mg/ml)") +
   xlab("Time post infection (days)")
 elisa_plot
-ggsave("figures/figure_S5.pdf", elisa_plot,
+ggsave("figures/extended_data_fig_6a.pdf", elisa_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
-## S.3C 
+# Extended data figure 4c
 
 ```{r}
 pad1_expression <- read_csv("data/pad1_qpcr_data/pad1_expression.csv") %>%
@@ -1522,12 +1540,14 @@ vsgs_vs_pad1 <- pad1_expression %>%
   xlab("Log10(relative PAD1 expression)")
 vsgs_vs_pad1
 
-ggsave("figures/figure_S3C.pdf",vsgs_vs_pad1,
+ggsave("figures/extended_data_fig_4c.pdf",vsgs_vs_pad1,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
 
-## S.6
+# Figure 4
+
+## Tsetse infection data
 
 ```{r}
 tsetse_raw_results <- vsg_read("data/tsetse_infection_data/tsetse_all_results.txt")
@@ -1546,7 +1566,7 @@ tsetse_results <- tsetse_results %>%
   mutate(day = factor(day, levels = c("D5", "D10", "D14")))
 ```
 
-# 4a
+# Figure 4a
 ```{r}
 tsetse_results %>%
   filter(mouse == "m4",
@@ -1599,10 +1619,12 @@ tsetse_VSGs_count_plot <- tsetse_D14_mouse_VSG_counts %>%
 
 tsetse_VSGs_count_plot
 
-ggsave("figures/tsetse_percent_vsgs_by_space.pdf", tsetse_VSGs_count_plot,
+ggsave("figures/figure_4a.pdf", tsetse_VSGs_count_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
+
+# Figure 4b
 
 ```{r}
 tsetse_counts_per_sample <- tsetse_results %>%
@@ -1633,15 +1655,18 @@ tsetse_d14_counts_by_space_plot <- tsetse_counts_per_sample %>%
   scale_fill_manual(values = color_palette_12) +
   scale_color_manual(values = color_palette_12) +
   add_pvalue(tsetse_counts_by_space_t_test_dat, 
-             label = "p.adj.signif",
+             label = "p.adj",
              xmin = "xmin", 
              xmax = "xmax") +
   scale_y_continuous(limits = c(0,300))
 tsetse_d14_counts_by_space_plot
 
-ggsave("figures/figure_S6A.pdf", tsetse_d14_counts_by_space_plot,
+ggsave("figures/figure_4b.pdf", tsetse_d14_counts_by_space_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
+
+
+# Figure 4c 
 
 ```{r}
 tsetse_results_all_combos <- vsg_expand(tsetse_results, "samplename", "cluster") %>%
@@ -1689,12 +1714,13 @@ tsetse_starting_vsg_espression_plot <- tsetse_starting_vsg_espression_dat %>%
          fill = guide_legend(title = "Space"))
 tsetse_starting_vsg_espression_plot
 
-ggsave("figures/figure_S6B.pdf", tsetse_starting_vsg_espression_plot,
+ggsave("figures/figure_4c.pdf", tsetse_starting_vsg_espression_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
+# Figure 4d
 ```{r}
-
+# combining with salivary gland sequencing results and use updated cd-hit clustering to include these mVSGs 
 tsetse_sg_raw_results <- rbind(tsetse_raw_results, sg_raw_results)
 
 tsetse_sg_results <- vsg_rename(tsetse_sg_raw_results, "data/tsetse_infection_data/sg_orfs/cluster_reference_table.txt") %>%
@@ -1744,13 +1770,14 @@ percent_sg_vsgs <- sgs_percent %>%
          fill = guide_legend(title = "Space"))
 percent_sg_vsgs
 
-ggsave("figures/percent_sg_vsgs.pdf", percent_sg_vsgs,
+ggsave("figures/figure_4d.pdf", percent_sg_vsgs,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
 # extended data fig 2 
 
 ## Testing if there are certain VSGs or VSG motiffs that are preferred within specific tissue niches. (Jill Hakim)
+
 ```{r, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)

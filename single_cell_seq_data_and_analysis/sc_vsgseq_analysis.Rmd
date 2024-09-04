@@ -61,7 +61,7 @@ ss3x08_results <- ss3x08_sc_results_renamed
 ss3x07_sc_results <- vsg_read("de_novo_assembly_results_files/SS3x07_results/all_results_exp1.txt") %>%
   select(-well, -R) %>%
   filter(type != "Water") %>%
-  rename(cell = type) %>%
+  dplyr::rename(cell = type) %>%
   separate(samplename, c("name", "R"), sep = "R", remove = F) %>%
   separate(name, c("well", "source"), sep = "_") %>%
   mutate(sort = case_when(source == "AnTat" ~ "Antat",
@@ -93,6 +93,7 @@ ss3x07_sc_results_renamed <- vsg_rename(
 
 ss3x07_results <- ss3x07_sc_results_renamed
 ```
+
 ```{r}
 # Combining results from both experiments
 all_raw_results <- rbind(ss3x07_sc_results, ss3x08_sc_results)
@@ -153,7 +154,7 @@ results <- results %>%
 #I got raw total read counts from each cell by using -wc in the terminal. These are not succesfully aligning reads, but just total raw reads per cell. 
 read_counts <- read_table("de_novo_assembly_results_files/read_counts.txt", 
     col_names = FALSE) %>%
-  rename(lines = X1,
+  dplyr::rename(lines = X1,
          file = X2) %>%
   filter(str_detect(file,"bulk") != T, 
          str_detect(file, "unassigned") != T) %>%
@@ -175,6 +176,8 @@ result_vs_reads <- results_and_reads %>%
   theme_pubr()
 result_vs_reads
 ```
+
+# Extended data figure 5a
 
 ```{r}
 # The total number of cells with a de novo assembled VSG 
@@ -207,7 +210,7 @@ mouse1_assem_vsgs_histo <- mouse1_assem_vsgs_histo_dat %>%
   ylab("Number of cells")
 mouse1_assem_vsgs_histo
 
-ggsave("figures/mouse1_assem_vsgs_histo.pdf", mouse1_assem_vsgs_histo,
+ggsave("figures/extended_data_figure_5a-1.pdf", mouse1_assem_vsgs_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 
 mouse2_assem_vsgs_histo_dat <- results %>%
@@ -218,16 +221,16 @@ mouse2_assem_vsgs_histo_dat <- results %>%
 
 write_csv(mouse2_assem_vsgs_histo_dat, "../source_data/ext_dat_5a-2.csv")
 
-mouse1_assem_vsgs_histo <- mouse1_assem_vsgs_histo_dat %>%
+mouse2_assem_vsgs_histo <- mouse2_assem_vsgs_histo_dat %>%
   ggplot(aes(x =  number_of_vsgs_in_sample)) +
   geom_histogram(binwidth = 1) +
   facet_wrap("source", scales = "free_y") +
   theme_pubr(base_size = 20)+
   ggtitle("Mouse 2") +
   ylab("Number of cells")
-mouse2_assem_vsgs_histo
+mouse1_assem_vsgs_histo
 
-ggsave("figures/mouse2_assem_vsgs_histo.pdf", mouse2_assem_vsgs_histo,
+ggsave("figures/extended_data_figure_5a-2.pdf", mouse2_assem_vsgs_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
@@ -342,8 +345,8 @@ mouse1_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
   
  mouse1_dominant_vsgs_per_source_plot
 
-ggsave("figures/mouse1_dominant_vsgs_per_source_plot.pdf", mouse1_dominant_vsgs_per_source_plot,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/mouse1_dominant_vsgs_per_source_plot.pdf", mouse1_dominant_vsgs_per_source_plot,
+#       device = "pdf", width = 8, height = 6, units = "in")
 
 mouse2_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
   filter(mouse == "mouse2") %>%
@@ -358,18 +361,9 @@ mouse2_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
 
 mouse2_dominant_vsgs_per_source_plot
 
-ggsave("figures/mouse2_dominant_vsgs_per_source_plot.pdf", mouse2_dominant_vsgs_per_source_plot,
-       device = "pdf", width = 8, height = 6, units = "in")
+#ggsave("figures/mouse2_dominant_vsgs_per_source_plot.pdf", mouse2_dominant_vsgs_per_source_plot,
+#       device = "pdf", width = 8, height = 6, units = "in")
 
-invitro_dominant_vsgs_per_source_plot <- dominant_vsgs_per_source %>%
-  filter(mouse == "invitro") %>%
-  ggplot(aes(x =  dominant_number_of_vsgs_in_sample)) +
-  geom_histogram(binwidth = 1) +
-  #facet_wrap("source", scales = "free_y") +
-  theme_pubr() + 
-  xlim(0.5,3.5) +
-  ggtitle("in vitro")
-invitro_dominant_vsgs_per_source_plot
 ```
 
 ```{r}
@@ -382,7 +376,7 @@ VSG_location_EATRO1125v67 <- read_delim("VSG_location_EATRO1125v67.tsv",
 # The geneids and the corresponding VSGIDs
 VSG_geneids <- VSG_location_EATRO1125v67 %>%
   select(Gene_ID, VSG_ID) %>%
-  rename(vsg = Gene_ID) 
+  dplyr::rename(vsg = Gene_ID) 
 ```
 
 
@@ -391,7 +385,7 @@ VSG_geneids <- VSG_location_EATRO1125v67 %>%
 SS3x_008_EATRO_count_table_Alex_good_single_cells <- read_delim("gene_expression_matrices/SS3x_008_EATRO_gene_count_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
-  rename(gene_id = ...1) %>%
+  dplyr::rename(gene_id = ...1) %>%
   separate(gene_id, c("gene_id", "trash"), sep = ":") %>%
   select(-trash)
 
@@ -403,7 +397,7 @@ SS3x_008_EATRO_count_table_Alex_good_single_cells_df <- SS3x_008_EATRO_count_tab
 SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex <- read_delim("VSG_expression_matrices/SS3x_008_EATRO_VSG_relative_expression_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
-  rename(gene_id = ...1)
+  dplyr::rename(gene_id = ...1)
 
 # Transforming the expression matrix into a tidy table and managing the cell names and adding sort labels. Also joined the gene ids with the vsg ids 
 SS3x_008_EATRO_VSG_relative_expression_df <- SS3x_008_EATRO_VSG_relative_expression_table_only_good_cells_Alex %>%
@@ -413,7 +407,7 @@ SS3x_008_EATRO_VSG_relative_expression_df <- SS3x_008_EATRO_VSG_relative_express
   separate(cell, c("well", "mouse","source"), sep = "_", remove = F) %>%
   mutate(experiment = "exp2",
          sort = "tdTom")  %>%
-  rename(vsg = gene_id)  %>% 
+  dplyr::rename(vsg = gene_id)  %>% 
   left_join(VSG_geneids)
 
 
@@ -432,7 +426,7 @@ SS3x_008_EATRO_VSG_counts <- SS3x_008_EATRO_VSG_relative_expression_df %>%
 SS3x_007_EATRO_count_table_Alex_good_single_cells <- read_delim("gene_expression_matrices/SS3x_007_EATRO_gene_count_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
-  rename(gene_id = ...1) %>%
+  dplyr::rename(gene_id = ...1) %>%
   separate(gene_id, c("gene_id", "trash"), sep = ":") %>%
   select(-trash)
 
@@ -444,7 +438,7 @@ SS3x_007_EATRO_count_table_Alex_good_single_cells_df <- SS3x_007_EATRO_count_tab
 SS3x_007_EATRO_VSG_expression_good_cells <- read_delim("VSG_expression_matrices/SS3x_007_EATRO_VSG_relative_expression_table_filtered_cells.tsv", 
     delim = "\t", escape_double = FALSE, 
     trim_ws = TRUE) %>%
-  rename(gene_id = ...1) 
+  dplyr::rename(gene_id = ...1) 
 
 # Transforming the VSG expression matrix into a tidy table and cleaning up the names of cells and adding descriptions for the source of each cell. Also, labeling whether a cell was sorted based on AnTat1.1 staining or only on tdTomato.
 SS3x_007_EATRO_VSG_expression_df <- SS3x_007_EATRO_VSG_expression_good_cells %>%
@@ -463,7 +457,7 @@ SS3x_007_EATRO_VSG_expression_df <- SS3x_007_EATRO_VSG_expression_good_cells %>%
                            source == "Lung" ~ "mouse1")) %>%
   mutate(source = case_when(source == "Lung" ~ "lung",
                             source == "Mix" ~ "mix")) %>% 
-  rename(vsg = gene_id) %>%
+  dplyr::rename(vsg = gene_id) %>%
   left_join(VSG_geneids)
   
 # eatro VSG expression with no antat sorted cells and one lung plate. (the other lung plates were sorted on antat and we did not want to include them because they could introduce bias in VSG expression) 
@@ -1178,7 +1172,7 @@ summary_cell_numbers <- Eatro_vsg_expression_df %>%
   dplyr::count()
   
 ```
-
+# Extended data figure 5b
 
 ```{r}
 #Histograms (only filter is requiring >1 UMI count to map to a VSG)
@@ -1203,7 +1197,7 @@ mouse1_eatro_histo <- eatro_histo_dat %>%
   scale_x_continuous(breaks=c(0,2,4,6,8,10,12,14))
 mouse1_eatro_histo
 
-ggsave("figures/mouse1_eatro_histo_10umi.pdf", mouse1_eatro_histo,
+ggsave("figures/extended_data_fig_5b-1.pdf", mouse1_eatro_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 
 # Mouse 2 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
@@ -1219,10 +1213,11 @@ mouse2_eatro_histo <- eatro_histo_dat %>%
   scale_x_continuous(breaks=c(0,2,4,6,8,10))
 mouse2_eatro_histo
 
-ggsave("figures/mouse2_eatro_histo_10umi.pdf", mouse2_eatro_histo,
+ggsave("figures/extended_data_fig_5b-1.pdf", mouse2_eatro_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
+# Extended data fig 5c
 
 ```{r}
 
@@ -1251,7 +1246,7 @@ eatro_violin_plot <- eatro_violin_dat %>%
   ylab("Proportion of UMI counts aligning to the most abundant VSG per cell")
 eatro_violin_plot
 
-ggsave("figures/eatro_violin_plot_10umi.pdf", eatro_violin_plot,
+ggsave("figures/extended_data_fig_5c.pdf", eatro_violin_plot,
        device = "pdf", width = 8, height = 6, units = "in")
 ```
 
@@ -1374,7 +1369,7 @@ eatro_dom_vsg_counts %>%
 # combining eatro mapping and assembled VSG counts for each cell. This is with a filter calling a single VSG expressed in a cell if that VSG represents 80% or more of the VSG reads. 
 
 eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
-  rename(cell = cellid_2,
+  dplyr::rename(cell = cellid_2,
          assembled_vsgs = dominant_number_of_vsgs_in_sample) %>%
   right_join(eatro_dom_vsg_counts) %>%
   filter(sort == "tdTom") %>%
@@ -1470,13 +1465,13 @@ write.fasta(problem_cluster_orfs, names = names(problem_cluster_orfs), file.out 
 # 95.8 % of these cells can be explained by common read mapping errors or by the assembled orf not being represented in the reference genome. 
 
 problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
-  rename(query_id = VSG)
+  dplyr::rename(query_id = VSG)
 
 trin_cluster_names <- results %>%
   ungroup() %>%
   select(VSG, cluster) %>%
   distinct() %>%
-  rename(query_id = VSG)
+  dplyr::rename(query_id = VSG)
 
 # To see if the VSGs that assembled in these cells are represented in the genome I am going to blast the assembled VSG ORFs against the EATRO genome.
 # Blast of all the assembled vsg orfs in cells that had multiple VSG hits by alignment but only one vsg by assembly. I blasted against all the annotated regions of the EATRO1125 genome.  
@@ -1685,6 +1680,8 @@ number_no_assembly <- eatro_and_assembled_counts %>%
 # 4.8% of the total had at > 1 VSG by alignment but no vsgs detected by de novo assembly.
 ```  
   
+# Extended data 5e
+
 ```{r}
 # Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5e. 
 
@@ -1710,11 +1707,12 @@ eatro_and_assembled_counts_bar <- eatro_and_assembled_counts_bar_dat %>%
 
 eatro_and_assembled_counts_bar
 
-ggsave("figures/eatro_and_assembled_counts_10umi.pdf", eatro_and_assembled_counts_bar,
+ggsave("figures/extended_data_5e.pdf", eatro_and_assembled_counts_bar,
        device = "pdf", width = 12, height = 6, units = "in")
 
 ```
 
+# Supplementary tables 
 ```{r}
 # Creating summary table for extended data table 2. 
 eatro_and_assembled_counts_summary <- eatro_and_assembled_counts %>%
@@ -1747,7 +1745,7 @@ supplementary_table_1 <- eatro_and_assembled_counts %>%
                             T ~ source)) %>%
   mutate(assembled_vsgs = case_when(is.na(assembled_vsgs) == T ~ 0,
                                     T ~ assembled_vsgs)) %>%
-  rename(number_of_VSGs_detected_by_de_novo_assembly = assembled_vsgs,
+  dplyr::rename(number_of_VSGs_detected_by_de_novo_assembly = assembled_vsgs,
          number_of_VSGs_by_genome_alignment = number_of_VSGs)
 write.xlsx(supplementary_table_1, "tables/supplementary_table_1.xlsx")
 
@@ -1755,7 +1753,7 @@ supplementary_table_2 <- Eatro_vsg_expression_df %>%
   ungroup() %>%
   filter(mouse != "invitro") %>%
   select(-experiment, -sort, -well) %>%
-  rename(gene_id = vsg,
+  dplyr::rename(gene_id = vsg,
          percent_VSG_UMI_count = Percent, 
          UMI_count = read_count) %>%
   mutate(mouse = case_when(mouse == "mouse1" ~ "Mouse 1",
@@ -1772,7 +1770,7 @@ supplementary_table_3 <- dominant_vsg_results %>%
          str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
   ungroup() %>%
   select(-cellid, -samplename, -well, -cell, -sort, -experiment, -plate, -vsg) %>%
-  rename(dominant_vsg = main_vsg, 
+  dplyr::rename(dominant_vsg = main_vsg, 
          cell = cellid_2,
          number_of_vsgs_assembled_in_cell = number_of_vsgs_in_sample,
          Percent_of_reads = Percent) %>%
@@ -1792,8 +1790,9 @@ write.xlsx(supplementary_table_3, "tables/supplementary_table_3.xlsx")
 ```
 
 
-## Visualize VSG read covereage in one cell that likely expressed a mosaic
+# Visualize VSG read covereage in one cell that likely expressed a mosaic
 
+# Extended data figure 5d
 ```{r}
 # We want to visualize raw read coverage in a cell that has a commonly expressed VSG that cause read alignment error because it is a mosaic of two different VSGs in the reference genome.
 
@@ -1888,9 +1887,12 @@ vsg72.coverage
 ggsave("figures/vsg72.coverage.pdf", vsg72.coverage,
        device = "pdf", width = 8, height = 4, units = "in")
 ```
+Thats the end of all the analyses! 
+
+# Tidying
 
 ```{r}
-# calculating the total cells and creating a list of all the sequencing files used
+# calculating the total cells and creating a list of all the sequencing files used ( this is to be used for annotating the SRA upload with all our filanames and metadata)
 SS3x_007_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_007_EATRO_VSG_relative_expression_table_raw.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
   rename(gene_id = ...1)  %>%
   pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "Percent") %>% 

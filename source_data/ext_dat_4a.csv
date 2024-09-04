@@ -1,0 +1,97 @@
+reads_aligned,mouse_final,day,tissue_final,vsg_count,space
+3244532,8,D6,blood,2,blood
+161606,7,D10,heart,115,tissues
+1907797,4,D6,blood,3,blood
+1065858,3,D6,skin,7,tissues
+1375571,1,D6,gon. fat,5,tissues
+580334,1,D6,heart,2,tissues
+2201762,1,D6,lung,8,tissues
+411914,2,D6,brain,2,tissues
+411,8,D10,brain,NA,NA
+1214207,7,D10,skin,80,tissues
+127716,3,D6,brain,3,tissues
+4340932,8,D10,blood,25,blood
+2220105,2,D6,blood,3,blood
+1773543,5,D10,skin,93,tissues
+3406512,3,D6,blood,1,blood
+3044296,3,D6,s.c. fat,6,tissues
+385986,4,D6,brain,3,tissues
+1143470,8,D10,gon. fat,134,tissues
+2473296,4,D6,lung,8,tissues
+677370,5,D10,heart,198,tissues
+158171,6,D10,brain,46,tissues
+3032825,1,D6,s.c. fat,7,tissues
+2404846,6,D10,blood,44,blood
+2535460,8,D10,lung,135,tissues
+487271,6,D10,skin,114,tissues
+3156228,7,D10,lung,48,tissues
+638320,6,D10,lung,234,tissues
+1860354,8,D10,s.c. fat,68,tissues
+1714565,6,D10,gon. fat,156,tissues
+129880,5,D10,brain,40,tissues
+306245,7,D10,gon. fat,50,tissues
+1901342,2,D6,skin,8,tissues
+979820,6,D10,heart,214,tissues
+818514,4,D6,skin,10,tissues
+2332943,5,D10,lung,305,tissues
+4794817,5,D10,blood,71,blood
+3944641,5,D10,s.c. fat,219,tissues
+1386657,1,D6,skin,40,tissues
+130389,1,D6,brain,5,tissues
+1827265,4,D6,s.c. fat,9,tissues
+31832,7,D10,brain,NA,NA
+1368592,3,D6,gon. fat,6,tissues
+1397258,2,D6,gon. fat,7,tissues
+1989973,5,D6,blood,1,blood
+1757509,3,D6,heart,3,tissues
+211798,8,D10,skin,123,tissues
+1665907,2,D6,heart,4,tissues
+2684,8,D10,heart,NA,NA
+1345888,5,D10,gon. fat,154,tissues
+3178948,6,D6,blood,1,blood
+3737922,7,D6,blood,2,blood
+2088738,6,D10,s.c. fat,254,tissues
+2998645,2,D6,lung,6,tissues
+3153785,7,D10,s.c. fat,56,tissues
+3708098,2,D6,s.c. fat,4,tissues
+2603443,1,D6,blood,3,blood
+520935,4,D6,gon. fat,5,tissues
+2104666,3,D6,lung,4,tissues
+663895,4,D6,heart,3,tissues
+3512162,7,D10,blood,11,blood
+2742500,10,D14,lung,151,tissues
+5552425,11,D14,s.c. fat,22,tissues
+1127181,12,D14,skin,96,tissues
+7989093,9,D14,skin,105,tissues
+6782383,10,D14,brain,85,tissues
+5944412,10,D14,blood,73,blood
+3918736,11,D6,blood,2,blood
+673844,11,D14,heart,73,tissues
+8107701,9,D10,blood,32,blood
+5279239,10,D6,blood,1,blood
+3705497,10,D14,s.c. fat,169,tissues
+966261,11,D14,skin,15,tissues
+3609641,10,D14,skin,58,tissues
+1177886,11,D14,lung,23,tissues
+6769428,11,D14,blood,19,blood
+82864,11,D14,brain,NA,NA
+9013727,12,D10,blood,11,blood
+5011636,10,D14,heart,66,tissues
+4401689,9,D14,lung,73,tissues
+4342292,9,D14,s.c. fat,109,tissues
+894389,11,D10,blood,8,blood
+6866270,9,D14,heart,163,tissues
+4671955,12,D6,blood,3,blood
+5439061,12,D14,blood,18,blood
+3149952,12,D14,brain,102,tissues
+5040795,10,D14,gon. fat,134,tissues
+5824012,9,D6,blood,1,blood
+7032204,12,D14,s.c. fat,17,tissues
+4763459,9,D14,gon. fat,116,tissues
+6613701,12,D14,heart,146,tissues
+6238896,11,D14,gon. fat,11,tissues
+8904671,10,D10,blood,42,blood
+3774375,9,D14,brain,141,tissues
+4836158,9,D14,blood,29,blood
+3963901,12,D14,lung,45,tissues
+7311736,12,D14,gon. fat,112,tissues
