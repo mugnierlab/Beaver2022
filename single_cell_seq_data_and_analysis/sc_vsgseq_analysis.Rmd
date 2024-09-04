@@ -8,7 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(vsgseqtools)
+#library(vsgseqtools) I haved added all the functions from this package into the RMD
 library(ggpubr)
 library(pheatmap)
 library(ggsci)
@@ -29,6 +29,214 @@ color_palette_2 <- c("#4D947B","#BA584A" )
 color_palette_6 <- c("#4D947B","#A2BDA5","#CFDED0", "#B0889E","#BA584A", "#D3D3D3")
 ```
 
+```{r, Functions, echo=FALSE}
+# Functions created and used later for this analysis.
+vsg_read <- function(filename, samplename = TRUE) {
+  if (stringr::str_detect(filename, ".txt") != TRUE) {
+    warning("This does not look like a VSGSeq results file.")
+  }
+  filename <- readr::read_tsv( filename ) %>%
+    dplyr::filter( file != "file") %>%
+    dplyr::mutate( Percent = readr::parse_number(Percent),
+            RPKM = readr::parse_number(RPKM),
+            dplyr::across(pct_id_vs_query:assembled_VSG_length, readr::parse_number)) 
+  if ( samplename == TRUE ) {
+    tidyr::separate(filename, file, "samplename", sep = ".fq", convert = TRUE) 
+  } else {
+    return(filename)
+  }
+}
+
+vsg_distinct_vectorize <- function(df, ...) {
+  df %>%
+    dplyr::distinct(...)
+}
+
+vsg_expand <- function(df, col1, col2, merge = TRUE) {
+  col1 <- as.name(col1)
+  col2 <- as.name(col2)
+
+  samples <- df %>%
+    vsg_distinct_vectorize(df[col1])
+  clusters <- df %>%
+    vsg_distinct_vectorize(df[col2])
+
+  expanded <- tidyr::expand_grid(samples, clusters)
+
+  if (merge == TRUE) {
+    expanded %>%
+      dplyr::left_join(df) %>%
+      dplyr::mutate(Percent = tidyr::replace_na(Percent, 0))
+  } else {
+    expanded
+  }
+}
+
+vsg_rename <- function(vsg_results_df, cluster_reference, ref_header = FALSE) {
+  if (exists(cluster_reference) != TRUE) {
+    cluster_reference <- utils::read.delim(cluster_reference,
+                                    header= ref_header)
+    colnames(cluster_reference) = c('VSG','cluster')
+    dplyr::left_join(vsg_results_df, cluster_reference)
+  } else {
+    colnames(cluster_reference) = c('VSG','cluster')
+    dplyr::left_join(vsg_results_df, cluster_reference)
+  }
+}
+
+vsg_count <- function( df, ..., keep_all = FALSE) {
+  if (keep_all == FALSE) {
+    df %>%
+      dplyr::group_by(...) %>%
+      dplyr::count() %>%
+      dplyr::rename( vsg_count = n ) %>%
+      dplyr::ungroup()
+  } else {
+    df %>%
+      dplyr::group_by(...) %>%
+      dplyr::add_count() %>%
+      dplyr::rename( vsg_count = n ) %>%
+      dplyr::ungroup()
+  }
+}
+
+vsg_max <- function(df,...) {
+  df %>%
+    dplyr::group_by(...) %>%
+    dplyr::filter(Percent == max(Percent)) %>%
+    dplyr::ungroup()
+}
+
+equation <- function(x) {
+  lm_coef <- list(a = round(coef(x)[1], digits = 2),
+                  b = round(coef(x)[2], digits = 2),
+                  r2 = round(summary(x)$r.squared, digits = 2));
+  lm_eq <- substitute(italic(y) == a + b %.% italic(x)*","~~italic(R)^2~"="~r2,lm_coef)
+  as.character(as.expression(lm_eq));                 
+}
+
+tissue_parasitemia_predictor <- function(file_location, file_name, standard_parasite_numbers, file_for_sample_multipliers) {
+  
+  results <- clean_qPCR_files_check_NTC(file_location, 
+                                        file_name, 
+                                        undetermined = "remove") %>%
+    separate(sample_name, c("mouse", "day", "tissue"), 
+             sep = " ", remove = FALSE) %>%
+    mutate(tissue = replace_na(tissue, "standard"))
+  
+  samples <- results %>% 
+  filter(tissue != "standard") %>%
+  group_by(sample_name,mouse, day, tissue) %>%
+  summarise(ct_mean = mean(ct))
+  
+  standards <- results %>%
+  filter(tissue == "standard") %>%
+  group_by(sample_name) %>%
+  summarise(ct_mean = mean(ct))
+  
+  standard_parasite_numbers <- read_csv(standard_parasite_numbers)
+  
+  standards <- left_join(standards, standard_parasite_numbers)
+  
+  fit <- lm(log10(parasites) ~ ct_mean, data = standards)
+  
+  predictions <- predict(fit, newdata = samples, interval = "prediction") %>%
+    as.tibble() %>%
+    select(fit)
+  
+tissue_sample_multipliers <- read.csv(file_for_sample_multipliers) %>%
+  mutate(mouse = str_c("m", mouse),
+         day = str_c("d", day),
+         tissue = case_when(tissue == "Brain" ~ "brain",
+                            tissue == "Ear" ~ "ear",
+                            tissue == "Gon Fat" ~ "gon",
+                            tissue == "Heart" ~ "heart",
+                            tissue == "Lung" ~ "lung",
+                            tissue == "Sub Cu" ~ "sc",
+                            TRUE ~ tissue)) %>%
+  mutate(sample_name = str_c(mouse, day, tissue, sep = " ")) %>%
+  select(sample_name, multiplier.to.reprent.full.sample, Mass..mg.) %>%
+  dplyr::rename(mass = Mass..mg.)
+
+  predictions <- cbind(predictions, newdata = samples) %>%
+    mutate(number_of_parasites = 10^fit) %>%
+    dplyr::rename(ct_mean = newdata.ct_mean,
+           sample_name = newdata.sample_name) %>%
+    select(sample_name, ct_mean, number_of_parasites) 
+  
+  predictions <- left_join(predictions, tissue_sample_multipliers) %>%
+    mutate(total_parasites_in_sample =
+             number_of_parasites*multiplier.to.reprent.full.sample) %>%
+    mutate(parasites_per_mg = total_parasites_in_sample/mass)
+  
+  return(list(predictions,standards))
+  
+}
+
+blood_parasitemia_predictor <- function(file_location, file_name,
+                                        standard_parasite_numbers,
+                                        file_for_sample_multipliers) {
+  
+  results <- clean_qPCR_files_check_NTC(file_location, 
+                                        file_name, 
+                                        undetermined = "remove") %>% 
+    separate(sample_name, c("mouse", "day", "tissue"), 
+             sep = " ", remove = FALSE) %>%
+    mutate(tissue = replace_na(tissue, "standard"))
+  
+  samples <- results %>% 
+  filter(tissue != "standard") %>%
+  group_by(sample_name,mouse, day, tissue) %>%
+  summarise(ct_mean = mean(ct))
+  
+  standards <- results %>%
+  filter(tissue == "standard") %>%
+  group_by(sample_name) %>%
+  summarise(ct_mean = mean(ct)) %>%
+    filter(sample_name != "std 7")
+  
+  standard_parasite_numbers <- read_csv(standard_parasite_numbers)
+  
+  standards <- left_join(standards, standard_parasite_numbers)
+  
+  fit <- lm(log10(parasites) ~ ct_mean, data = standards)
+  
+  predictions <- predict(fit, newdata = samples, interval = "prediction") %>%
+    as.tibble() %>%
+    select(fit)
+  
+tissue_sample_multipliers <- read.csv(file_for_sample_multipliers) %>%
+  mutate(mouse = str_c("m", mouse),
+         day = str_c("d", day),
+         tissue = case_when(tissue == "Brain" ~ "brain",
+                            tissue == "Ear" ~ "ear",
+                            tissue == "Gon Fat" ~ "gon",
+                            tissue == "Heart" ~ "heart",
+                            tissue == "Lung" ~ "lung",
+                            tissue == "Sub Cu" ~ "sc",
+                            TRUE ~ tissue)) %>%
+  mutate(sample_name = str_c(mouse, day, tissue, sep = " ")) %>%
+  select(sample_name, multiplier.to.reprent.full.sample, Mass..mg., parasitemia_count) %>%
+  dplyr::rename(mass = Mass..mg.)
+
+  predictions <- cbind(predictions, newdata = samples) %>%
+    mutate(number_of_parasites = 10^fit) %>%
+    dplyr::rename(ct_mean = newdata.ct_mean,
+           sample_name = newdata.sample_name) %>%
+    select(sample_name, ct_mean, number_of_parasites) 
+  
+  predictions <- left_join(predictions, tissue_sample_multipliers) %>%
+    mutate(total_parasites_in_sample =
+             number_of_parasites*multiplier.to.reprent.full.sample) %>%
+    mutate(parasites_per_mg = total_parasites_in_sample/mass) %>%
+    mutate(parasites_per_ml = parasites_per_mg*1000) %>%
+    mutate(fold_difference = parasitemia_count/parasites_per_ml) %>%
+    mutate(parasites_in_sample_by_count = parasitemia_count*.025)
+
+  return(list(predictions,standards))
+  
+}
+```
 
 # VSG-Seq de novo assembly analysis
 
@@ -780,7 +988,7 @@ eatro_dom_vsg_counts %>%
 #Some of the mapped VSGs for a cell represent a very small number of reads. which probably explains why a VSG did not assembled in some of the cells that are "good".  
 
 eatro_and_assembled_counts <- dominant_vsgs_per_source %>% 
-  rename(cell = cellid_2,
+  dplyr::rename(cell = cellid_2,
          assembled_vsgs = dominant_number_of_vsgs_in_sample) %>%
   right_join(eatro_dom_vsg_counts) %>%
   filter(sort == "tdTom") %>%
@@ -1043,7 +1251,7 @@ eatro_and_assembled_counts %>%
 # 95.8 % 
 
 problem_cells <- cells_with_multialign_1_assemble_vsgs %>%
-  rename(query_id = VSG)
+  dplyr::rename(query_id = VSG)
 
 library(metablastr)
 
@@ -1051,7 +1259,7 @@ trin_cluster_names <- results %>%
   ungroup() %>%
   select(VSG, cluster) %>%
   distinct() %>%
-  rename(query_id = VSG)
+  dplyr::rename(query_id = VSG)
 
 blast_test <- blast_nucleotide_to_nucleotide(
                  query   = system.file('seqs/qry_nn.fa', package = 'metablastr'),
@@ -1894,7 +2102,7 @@ Thats the end of all the analyses!
 ```{r}
 # calculating the total cells and creating a list of all the sequencing files used ( this is to be used for annotating the SRA upload with all our filanames and metadata)
 SS3x_007_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_007_EATRO_VSG_relative_expression_table_raw.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-  rename(gene_id = ...1)  %>%
+  dplyr::rename(gene_id = ...1)  %>%
   pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "Percent") %>% 
   select(cell) %>%
   distinct(cell) %>%
@@ -1914,7 +2122,7 @@ SS3x_007_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_007_EA
   
 
 SS3x_008_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_008_EATRO_VSG_relative_expression_table_raw.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
-  rename(gene_id = ...1) 
+  dplyr::rename(gene_id = ...1) 
   pivot_longer(cols = A1_mouse1_blood:last_col(), names_to = "cell" ,values_to = "Percent") %>%
   select(cell) %>%
   distinct() %>%
@@ -1935,12 +2143,12 @@ all_analyzed_cells <- all_cells %>%
 
 all_sequenced_cell_filenames <- read_csv("VSG_expression_matrices/all_sequenced_cell_filenames.txt", 
     col_names = FALSE) %>%
-  rename(cell = X1) %>%
+  dplyr::rename(cell = X1) %>%
   filter(cell != "unassigned.fq.gz")
 
 ss307_filenames <- read_csv("ss307_filenames.txt", 
     col_names = FALSE) %>%
-  rename(filename = X1) %>%
+  dplyr::rename(filename = X1) %>%
    separate(filename, "name", sep = "_R", remove = F) %>%
   separate(name, c("well", "source"), sep = "_") %>%
   mutate(sort = case_when(source == "AnTat" ~ "Antat",
@@ -1957,7 +2165,7 @@ ss307_filenames <- read_csv("ss307_filenames.txt",
 
 ss308_filenames <- read_csv("ss308_filenames.txt", 
     col_names = FALSE) %>%
-  rename(filename = X1) 
+  dplyr::rename(filename = X1) 
   filter(str_detect(filename, "Water") != T) %>%
   filter(filename != "unassigned.fq.gz") %>%
   separate(filename, c("mouse", "source","cell_1","cell_2", "well", "plate", "experiment"), sep = "_", remove = F) %>%
