@@ -1,0 +1,48 @@
+sample,mouse,day,tissue,antat_pos,antat_neg
+blood,exp1_C1M1,6,blood,20394,486
+blood,exp1_C2M3,6,blood,42969,1458
+blood,exp1_C2M3,13,blood,1,19922
+fat,exp1_C1M1,6,fat,411,32
+fat,exp1_C2M3,13,fat,0,250
+lung,exp1_C1M1,6,lung,817,49
+lung,exp1_C2M3,13,lung,573,4460
+blood_M1_012.fcs,exp2_M1,6,blood,19737,270
+blood_M2_013.fcs,exp2_M2,6,blood,39373,592
+blood_M3_014.fcs,exp2_M3,6,blood,49406,600
+blood_M4_015.fcs,exp2_M4,6,blood,10317,31
+blood_uninfected_016.fcs,exp2_M5,6,blood,0,0
+fat_M1_009.fcs,exp2_M1,6,fat,220,4
+fat_M2_010.fcs,exp2_M2,6,fat,379,10
+fat_uninfected_011.fcs,exp2_M5,6,lung,0,0
+lung_M1_006.fcs,exp2_M1,6,lung,1464,55
+lung_M2_007.fcs,exp2_M2,6,lung,676,30
+lung_uninfected_008.fcs,exp2_M5,6,lung,0,0
+Blood_M3 blood_001.fcs,exp2_M3,13,blood,1,19885
+Blood_M4 blood_002.fcs,exp2_M4,13,blood,0,1001
+Blood_uninfected blood_003.fcs,exp2_M6,13,blood,0,0
+Fat_M3 Fat_007.fcs,exp2_M3,13,fat,31,4982
+Fat_M4 Fat_008.fcs,exp2_M4,13,fat,3,781
+Fat_Uninfected Fat_001.fcs,exp2_M6,13,fat,0,0
+Lung_M3 Lung_004.fcs,exp2_M3,13,lung,318,29889
+Lung_M4 Lung_005.fcs,exp2_M4,13,lung,265,29733
+Lung_Uninfected Lung_006.fcs,exp2_M6,13,lung,0,0
+Blood_M1 blood_001.fcs,exp3_M1,6,blood,65135,249
+Blood_M2 blood_002.fcs,exp3_M2,6,blood,49239,632
+Blood_M3 blood_003.fcs,exp3_M3,6,blood,49758,147
+Blood_M4 blood_004.fcs,exp3_M4,6,blood,49286,642
+Blood_M5 uninfected blood_005.fcs,exp3_M5,6,blood,93,4
+Fat_M1 Fat_009.fcs,exp3_M1,6,fat,69,3
+Fat_M2 Fat_010.fcs,exp3_M2,6,fat,71,0
+Fat_M5 uninfected Fat_011.fcs,exp3_M5,6,fat,0,0
+Lung_M1 Lung_006.fcs,exp3_M1,6,lung,275,182
+Lung_M2 lung_007.fcs,exp3_M2,6,lung,770,137
+Lung_M5 uninfected lung_008.fcs,exp3_M5,6,lung,2,0
+blood_M3 Blood_006.fcs,exp3_M3,13,blood,3,5042
+blood_M4 Blood_007.fcs,exp3_M4,13,blood,14,20204
+blood_M6 uninfected Blood_008.fcs,exp3_M6,13,blood,0,0
+fat_M3 Fat_009.fcs,exp3_M3,13,fat,0,1537
+fat_M4 Fat_010.fcs,exp3_M4,13,fat,33,7034
+fat_M6 uninfectred Fat_011.fcs,exp3_M6,13,fat,0,0
+lung_M3 Lung_012.fcs,exp3_M3,13,lung,403,18944
+lung_M4 Lung_013.fcs,exp3_M4,13,lung,187,38096
+lung_M6 uninfected Lung_014.fcs,exp3_M6,13,lung,0,0

@@ -190,11 +190,15 @@ results %>%
   
 # For results in the paper we don't want to include any cells that were specifically sorted on AnTat because this could bias our VSG data. I am filtering out the two Lung AnTat plates and the any cell that was sorted for AnTat staining. (Lung_R1 and Lung_Antat_R1). 
 
-mouse1_assem_vsgs_histo <- results %>%
+mouse1_assem_vsgs_histo_dat <- results %>%
   filter(sort == "tdTom") %>%
   filter(str_detect(cellid_2, "Lung_R1") != T,
          str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
-  filter(mouse == "mouse1") %>%
+  filter(mouse == "mouse1") 
+
+write_csv(mouse1_assem_vsgs_histo_dat, "../source_data/ext_dat_5a-1.csv")
+
+mouse1_assem_vsgs_histo <- mouse1_assem_vsgs_histo_dat %>%
   ggplot(aes(x =  number_of_vsgs_in_sample)) +
   geom_histogram(binwidth = 1) +
   facet_wrap("source", scales = "free_y") +
@@ -206,11 +210,15 @@ mouse1_assem_vsgs_histo
 ggsave("figures/mouse1_assem_vsgs_histo.pdf", mouse1_assem_vsgs_histo,
        device = "pdf", width = 8, height = 6, units = "in")
 
-mouse2_assem_vsgs_histo <- results %>%
+mouse2_assem_vsgs_histo_dat <- results %>%
   filter(sort == "tdTom") %>%
   filter(str_detect(cellid_2, "Lung_R1") != T,
          str_detect(cellid_2, "Lung_Antat_R1") != T) %>%
-  filter(mouse == "mouse2") %>%
+  filter(mouse == "mouse2") 
+
+write_csv(mouse2_assem_vsgs_histo_dat, "../source_data/ext_dat_5a-2.csv")
+
+mouse1_assem_vsgs_histo <- mouse1_assem_vsgs_histo_dat %>%
   ggplot(aes(x =  number_of_vsgs_in_sample)) +
   geom_histogram(binwidth = 1) +
   facet_wrap("source", scales = "free_y") +
@@ -834,7 +842,7 @@ cells_with_multialign_1_assemble_vsgs <- cells_with_multialign_1_assemble %>%
   distinct()
   
 # Load in all of the VSG orfs assembled 
-sc_seq_all_orfs <- read.fasta(file = "all_vsg_orfs/all_vsg_orfs_bothexps.fa")
+sc_seq_all_orfs <- read.fasta(file = "de_novo_assembly_VSG_orfs/all_vsg_orfs_bothexps.fa")
 
 
 # finding the names of all these clusters that have this problem
@@ -1180,6 +1188,8 @@ eatro_histo_dat <- Eatro_vsg_expression_df %>%
   group_by(cell, mouse, source) %>%
   dplyr::count( name = "number_of_VSGs")
 
+write_csv(eatro_histo_dat, "../source_data/ext_dat_5b.csv")
+
 # Mouse 1 histogram of EATRO VSGs with alignment (only cells meeting the initial cutoffs are shown)
 mouse1_eatro_histo <- eatro_histo_dat %>%
   filter(mouse == "mouse1") %>%
@@ -1221,10 +1231,12 @@ ggsave("figures/mouse2_eatro_histo_10umi.pdf", mouse2_eatro_histo,
 eatro_violin_dat <- Eatro_vsg_expression_df %>%
   filter(read_count > 1) %>%
   group_by(cell) %>%
-  filter(Percent == max(Percent))
+  filter(Percent == max(Percent)) %>%
+  filter(mouse != "invitro") 
+
+write_csv(eatro_violin_dat, "../source_data/ext_dat_5c.csv")
 
 eatro_violin_plot <- eatro_violin_dat %>%
-  filter(mouse != "invitro") %>%
   ggplot(aes(x = source, y = Percent))+
   facet_wrap("mouse", scales = "free_x") +
   geom_violin() +
@@ -1676,13 +1688,17 @@ number_no_assembly <- eatro_and_assembled_counts %>%
 ```{r}
 # Creating a figure showing the percentage of cells in each space for every category of VSG expression. Sup fig 5e. 
 
-eatro_and_assembled_counts_bar <- eatro_and_assembled_counts %>%
+eatro_and_assembled_counts_bar_dat <- eatro_and_assembled_counts %>%
    filter(sort == "tdTom",
         mouse != "invitro") %>%
   select(-main_vsg) %>%
   distinct() %>%
   ungroup() %>%
-  group_by(mouse, source) %>%
+  group_by(mouse, source) 
+
+write_csv(eatro_and_assembled_counts_bar_dat, "../source_data/ext_dat_5e.csv")
+
+eatro_and_assembled_counts_bar <- eatro_and_assembled_counts_bar_dat %>%
   ggplot(aes(x = source, fill = cell_description)) + 
   geom_bar(position = "fill") +
   scale_y_continuous(labels = scales::percent) +
@@ -1799,6 +1815,8 @@ cluster59.track.folder = "read_coverage_data/cluster_59_bw"
 
 cluster59.track.df <- ggcoverage::LoadTrackFile(track.folder = cluster59.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
 
+write_csv(cluster59.track.df, "../source_data/ext_dat_5d-1.csv")
+
 cluster59.coverage = ggcoverage(data = cluster59.track.df, 
                             plot.type = "facet", 
                             range.position = "out",
@@ -1823,6 +1841,8 @@ vsg60.track.folder = "read_coverage_data//vsg-60_bw"
 
 
 vsg60.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg60.track.folder, format = "bw",region = "chr1:1-3000", extend = 2000)
+
+write_csv(vsg60.track.df, "../source_data/ext_dat_5d-2.csv")
 
 vsg60.coverage = ggcoverage(data = vsg60.track.df, 
                             plot.type = "facet", 
@@ -1849,6 +1869,8 @@ vsg72.track.folder = "read_coverage_data//vsg-72_bw"
 
 vsg72.track.df <- ggcoverage::LoadTrackFile(track.folder = vsg72.track.folder, format = "bw",region = "chr1:1-2000", extend = 2000)
 
+write_csv(vsg72.track.df, "../source_data/ext_dat_5d-3.csv")
+
 vsg72.coverage = ggcoverage(data = vsg72.track.df, 
                             plot.type = "facet", 
                             range.position = "out",
@@ -1866,6 +1888,93 @@ vsg72.coverage
 ggsave("figures/vsg72.coverage.pdf", vsg72.coverage,
        device = "pdf", width = 8, height = 4, units = "in")
 ```
+
+```{r}
+# calculating the total cells and creating a list of all the sequencing files used
+SS3x_007_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_007_EATRO_VSG_relative_expression_table_raw.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  rename(gene_id = ...1)  %>%
+  pivot_longer(cols = A1_Lung_R1:last_col(), names_to = "cell" ,values_to = "Percent") %>% 
+  select(cell) %>%
+  distinct(cell) %>%
+  separate(cell, "name", sep = "_R", remove = F) %>%
+  separate(name, c("well", "source"), sep = "_") %>%
+  mutate(sort = case_when(source == "AnTat" ~ "Antat",
+                          TRUE ~ "tdTom")) %>%
+  mutate(sort = case_when(str_detect(cell, "Lung_Antat") == TRUE & str_detect(well, "A|B|C|D") == TRUE ~ "Antat",  TRUE ~ sort)) %>%
+  mutate(source = case_when(source == "AnTat" ~ "Mix",
+                            TRUE ~ source)) %>%
+  mutate(experiment = "exp1") %>%
+  mutate(mouse = case_when(source == "Mix" ~ "invitro", 
+                           source == "Lung" ~ "mouse1")) %>%
+  mutate(source = case_when(source == "Lung" ~ "lung",
+                            source == "Mix" ~ "mix")) 
+
+  
+
+SS3x_008_EATRO_all_cell_names <- read_delim("VSG_expression_matrices/SS3x_008_EATRO_VSG_relative_expression_table_raw.tsv", delim = "\t", escape_double = FALSE, trim_ws = TRUE) %>%
+  rename(gene_id = ...1) 
+  pivot_longer(cols = A1_mouse1_blood:last_col(), names_to = "cell" ,values_to = "Percent") %>%
+  select(cell) %>%
+  distinct() %>%
+  separate(cell, c("well", "mouse","source"), sep = "_", remove = F) %>%
+  mutate(experiment = "exp2",
+         sort = "tdTom")  
+
+all_cells <- rbind(SS3x_007_EATRO_all_cell_names, SS3x_008_EATRO_all_cell_names)
+
+water_wells <- c("C3", "G2", "L1", "P1","N4","M8", "H10","E11","O12","J14","K15","O19", "F22","D24")
+
+all_analyzed_cells <- all_cells %>%
+  filter(sort == "tdTom",
+         mouse != "invitro") %>%
+   filter(str_detect(cell, "Lung_R1") != T,
+         str_detect(cell, "Lung_Antat_R1") != T) %>% 
+  filter(!well %in% water_wells )
+
+all_sequenced_cell_filenames <- read_csv("VSG_expression_matrices/all_sequenced_cell_filenames.txt", 
+    col_names = FALSE) %>%
+  rename(cell = X1) %>%
+  filter(cell != "unassigned.fq.gz")
+
+ss307_filenames <- read_csv("ss307_filenames.txt", 
+    col_names = FALSE) %>%
+  rename(filename = X1) %>%
+   separate(filename, "name", sep = "_R", remove = F) %>%
+  separate(name, c("well", "source"), sep = "_") %>%
+  mutate(sort = case_when(source == "AnTat" ~ "Antat",
+                          TRUE ~ "tdTom")) %>%
+  mutate(sort = case_when(str_detect(filename, "Lung_Antat") == TRUE & str_detect(well, "A|B|C|D") == TRUE ~ "Antat",  TRUE ~ sort)) %>%
+  mutate(source = case_when(source == "AnTat" ~ "Mix",
+                            TRUE ~ source)) %>%
+  mutate(experiment = "exp1") %>%
+  mutate(mouse = case_when(source == "Mix" ~ "invitro", 
+                           source == "Lung" ~ "mouse1")) %>%
+  mutate(source = case_when(source == "Lung" ~ "lung",
+                            source == "Mix" ~ "mix")) %>%
+  distinct()
+
+ss308_filenames <- read_csv("ss308_filenames.txt", 
+    col_names = FALSE) %>%
+  rename(filename = X1) 
+  filter(str_detect(filename, "Water") != T) %>%
+  filter(filename != "unassigned.fq.gz") %>%
+  separate(filename, c("mouse", "source","cell_1","cell_2", "well", "plate", "experiment"), sep = "_", remove = F) %>%
+  mutate(experiment = "exp2",
+         sort = "tdTom")  %>%
+  select(-cell_1, -cell_2, -plate ) %>%
+  distinct()
+
+all_filenames <- rbind(ss307_filenames,ss308_filenames) %>%
+  distinct() %>%
+  filter(str_detect(filename, "Lung_R1") != T) %>%
+  filter(str_detect(filename, "Lung_Antat_R1") != T)
+
+all_analyzed_cell_filenames <- right_join(all_filenames, all_analyzed_cells)
+ 
+#write_tsv(all_analyzed_cell_filenames, "all_analyzed_cell_filenames.txt")
+  
+```
+
 
 ```{r}
 sessionInfo()
